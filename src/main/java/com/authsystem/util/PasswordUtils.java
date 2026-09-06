@@ -66,7 +66,7 @@ public final class PasswordUtils {
             byte[] actual = Base64.getDecoder().decode(hash(password, saltBase64, iterations));
             byte[] expected = Base64.getDecoder().decode(expectedHash);
             return MessageDigest.isEqual(actual, expected);
-        } catch (IllegalArgumentException | RuntimeException e) {
+        } catch (RuntimeException e) {
             return false;
         }
     }
