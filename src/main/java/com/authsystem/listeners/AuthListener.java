@@ -55,20 +55,20 @@ public class AuthListener implements Listener {
         if (!registrado && verificacaoPremium != null) {
             int limiteIps = plugin.getConfig().getInt("max-ips-por-conta", 1);
             if (!plugin.getPremiumAccountManager().canUseIp(verificacaoPremium, ip, limiteIps)) {
-                player.kickPlayer(ChatColor.RED + "Esta conta original já atingiu o limite de " + limiteIps + " IP(s) permitido(s).");
-                return;
+                player.sendMessage(ChatColor.RED + "Esta conta original já atingiu o limite de " + limiteIps + " IP(s) permitido(s). Autenticação automática bloqueada; aguarde ou entre novamente quando houver vaga.");
+            } else {
+                int limiteContas = plugin.getConfig().getInt("max-contas-por-ip", 1);
+                if (!plugin.getSessionManager().tryRegisterAuthenticatedIp(ip, player.getUniqueId(), limiteContas)) {
+                    player.sendMessage(ChatColor.RED + "Este IP já atingiu o limite de " + limiteContas + " conta(s) autenticada(s) ao mesmo tempo. Você permanece conectado, mas precisa aguardar uma vaga para autenticar.");
+                } else {
+                    plugin.getPremiumAccountManager().addIp(verificacaoPremium, ip);
+                    plugin.getSessionManager().markPremium(player.getUniqueId());
+                    plugin.getSessionManager().setAuthenticated(player, true);
+                    enviarTitleAutenticacao(player, plugin.getMessagesManager().getTitleBemVindo(), "");
+                    player.sendMessage(ChatColor.GREEN + "Conta original verificada! Login automático realizado.");
+                    return;
+                }
             }
-            int limiteContas = plugin.getConfig().getInt("max-contas-por-ip", 1);
-            if (!plugin.getSessionManager().tryRegisterAuthenticatedIp(ip, player.getUniqueId(), limiteContas)) {
-                player.kickPlayer(ChatColor.RED + "Este IP já atingiu o limite de " + limiteContas + " conta(s) conectada(s) ao mesmo tempo.");
-                return;
-            }
-            plugin.getPremiumAccountManager().addIp(verificacaoPremium, ip);
-            plugin.getSessionManager().markPremium(player.getUniqueId());
-            plugin.getSessionManager().setAuthenticated(player, true);
-            enviarTitleAutenticacao(player, plugin.getMessagesManager().getTitleBemVindo(), "");
-            player.sendMessage(ChatColor.GREEN + "Conta original verificada! Login automático realizado.");
-            return;
         }
 
         if (registrado) {
