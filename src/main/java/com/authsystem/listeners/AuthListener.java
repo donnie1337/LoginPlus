@@ -49,9 +49,6 @@ public class AuthListener implements Listener {
                 ? null
                 : player.getAddress().getAddress().getHostAddress();
 
-        // A prova premium é consumida somente depois que o jogador realmente entrou.
-        // Isso elimina a corrida entre o AsyncPlayerPreLoginEvent original e o Login Start
-        // reenviado após a confirmação da sessão na Mojang.
         if (plugin.getPremiumAuthenticator().consumeVerified(player.getName(), ip) != null) {
             plugin.getSessionManager().markPremium(player.getUniqueId());
             plugin.getSessionManager().setAuthenticated(player, true);
