@@ -13,10 +13,10 @@ import com.github.retrooper.packetevents.wrapper.login.client.WrapperLoginClient
 import com.github.retrooper.packetevents.wrapper.login.client.WrapperLoginClientLoginStart;
 import com.github.retrooper.packetevents.wrapper.login.server.WrapperLoginServerEncryptionRequest;
 import io.netty.buffer.ByteBuf;
-import io.netty.channel.ChannelPipeline;
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.handler.codec.MessageToMessageDecoder;
+import io.netty.channel.ChannelPipeline;
 import io.netty.handler.codec.MessageToByteEncoder;
+import io.netty.handler.codec.MessageToMessageDecoder;
 
 import javax.crypto.Cipher;
 import javax.crypto.spec.IvParameterSpec;
@@ -29,13 +29,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 
-/**
- * Performs a real premium challenge in offline-mode.
- *
- * A Mojang name lookup is used only as a candidate filter. The final premium decision
- * is made only after the client proves possession of the Mojang session through the
- * normal RSA/AES login handshake and Mojang's hasJoined endpoint.
- */
+/** Real premium challenge for an offline-mode server. */
 public final class PremiumVerificationListener extends PacketListenerAbstract {
     private static final Logger LOGGER = Logger.getLogger("AuthSystem");
     private static final long FALLBACK_MS = 3000L;
@@ -65,18 +59,17 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
     private void handleLoginStart(PacketReceiveEvent event) {
         WrapperLoginClientLoginStart packet = new WrapperLoginClientLoginStart(event);
         String username = packet.getUsername();
-        if (username == null || username.length() < 2 || username.length() > 16) {
-            return;
-        }
+        if (username == null || username.length() < 2 || username.length() > 16) return;
 
         User user = event.getUser();
         ClientVersion version = user.getClientVersion();
         String key = connectionKey(user);
         UUID playerUuid = packet.getPlayerUUID().orElse(null);
+        String ip = user.getAddress().getAddress().getHostAddress();
         event.setCancelled(true);
 
-        // We do the cheap name lookup asynchronously. It is NOT the authentication decision.
         plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
+            // Name existence is only a candidate filter; it is NEVER the premium decision.
             boolean candidate = PremiumChecker.isPremium(username);
             if (!candidate) {
                 connections.remove(key);
@@ -85,13 +78,10 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
             }
 
             byte[] verifyToken = verifier.start(key, username);
-            connections.put(key, new PendingConnection(username, version, playerUuid));
-            WrapperLoginServerEncryptionRequest request =
-                    new WrapperLoginServerEncryptionRequest("", verifier.getPublicKey(), verifyToken, true);
-            user.sendPacket(request);
+            connections.put(key, new PendingConnection(username, version, playerUuid, ip));
+            user.sendPacket(new WrapperLoginServerEncryptionRequest(
+                    "", verifier.getPublicKey(), verifyToken, true));
 
-            // A cracked client may not answer the challenge. After a short grace period,
-            // continue as cracked instead of trapping it at the login screen.
             plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
                 if (connections.remove(key) != null && verifier.hasPending(key)) {
                     verifier.remove(key);
@@ -105,9 +95,7 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
         User user = event.getUser();
         String key = connectionKey(user);
         PendingConnection pending = connections.remove(key);
-        if (pending == null || !verifier.hasPending(key)) {
-            return;
-        }
+        if (pending == null || !verifier.hasPending(key)) return;
 
         WrapperLoginClientEncryptionResponse packet = new WrapperLoginClientEncryptionResponse(event);
         Optional<byte[]> token = packet.getEncryptedVerifyToken();
@@ -122,13 +110,6 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
         byte[] sharedSecret;
         try {
             sharedSecret = verifier.decrypt(packet.getEncryptedSharedSecret());
-        } catch (GeneralSecurityException e) {
-            verifier.remove(key);
-            resume(user, pending.version(), pending.username(), pending.playerUuid());
-            return;
-        }
-
-        try {
             enableEncryption(user.getChannel(), sharedSecret);
         } catch (GeneralSecurityException e) {
             verifier.remove(key);
@@ -138,7 +119,7 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
 
         verifier.verify(key, sharedSecret, token.get()).thenAccept(result -> {
             result.ifPresent(uuid -> {
-                authenticator.markVerified(pending.username(), uuid);
+                authenticator.markVerified(pending.username(), pending.ip(), uuid);
                 LOGGER.info("Premium identity verified for " + pending.username());
             });
             resume(user, pending.version(), pending.username(), pending.playerUuid());
@@ -147,9 +128,7 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
 
     private void resume(User user, ClientVersion version, String username, UUID playerUuid) {
         try {
-            WrapperLoginClientLoginStart packet =
-                    new WrapperLoginClientLoginStart(version, username, null, playerUuid);
-            user.receivePacketSilently(packet);
+            user.receivePacketSilently(new WrapperLoginClientLoginStart(version, username, null, playerUuid));
         } catch (Exception e) {
             LOGGER.warning("Could not resume login for " + username + ": " + e.getMessage());
         }
@@ -158,20 +137,17 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
     private void enableEncryption(Object channel, byte[] sharedSecret) throws GeneralSecurityException {
         SecretKeySpec key = new SecretKeySpec(sharedSecret, "AES");
         IvParameterSpec iv = new IvParameterSpec(sharedSecret);
-
         Cipher decrypt = Cipher.getInstance("AES/CFB8/NoPadding");
         decrypt.init(Cipher.DECRYPT_MODE, key, iv);
         Cipher encrypt = Cipher.getInstance("AES/CFB8/NoPadding");
         encrypt.init(Cipher.ENCRYPT_MODE, key, iv);
 
         ChannelPipeline pipeline = (ChannelPipeline) ChannelHelper.getPipeline(channel);
-        String decoderName = "decrypt";
-        String encoderName = "encrypt";
-        if (pipeline.get(decoderName) == null) {
-            pipeline.addBefore("splitter", decoderName, new AesCfb8Decoder(decrypt));
+        if (pipeline.get("authsystem-decrypt") == null) {
+            pipeline.addBefore("splitter", "authsystem-decrypt", new AesCfb8Decoder(decrypt));
         }
-        if (pipeline.get(encoderName) == null) {
-            pipeline.addBefore("prepender", encoderName, new AesCfb8Encoder(encrypt));
+        if (pipeline.get("authsystem-encrypt") == null) {
+            pipeline.addBefore("prepender", "authsystem-encrypt", new AesCfb8Encoder(encrypt));
         }
     }
 
@@ -180,7 +156,7 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
         return address.getAddress().getHostAddress() + ":" + address.getPort();
     }
 
-    private record PendingConnection(String username, ClientVersion version, UUID playerUuid) {}
+    private record PendingConnection(String username, ClientVersion version, UUID playerUuid, String ip) {}
 
     private static final class AesCfb8Decoder extends MessageToMessageDecoder<ByteBuf> {
         private final Cipher cipher;
