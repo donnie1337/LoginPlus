@@ -52,25 +52,38 @@ public class AuthListener implements Listener {
         if (plugin.getPremiumAuthenticator().consumeVerified(player.getName(), ip) != null) {
             plugin.getSessionManager().markPremium(player.getUniqueId());
             plugin.getSessionManager().setAuthenticated(player, true);
-            player.sendMessage(ChatColor.GREEN + "Conta original verificada! Login automatico realizado.");
+            player.sendMessage(ChatColor.GREEN + "Conta original verificada! Login automático realizado.");
             return;
         }
 
         plugin.getSessionManager().setFrozenLocation(player, player.getLocation());
         boolean registrado = plugin.getPlayerDataManager().isRegistered(player.getName());
+
         if (registrado) {
+            enviarTitleAutenticacao(player, "Bem-vindo", "Faça o login");
             player.sendMessage(ChatColor.YELLOW + "Bem-vindo de volta! Use /login <senha> para entrar.");
         } else {
+            enviarTitleAutenticacao(player, "Bem-vindo", "Faça o registro");
             player.sendMessage(ChatColor.YELLOW + "Bem-vindo! Use /registro <senha> <confirmar-senha> para criar sua conta.");
         }
 
         int timeoutSegundos = plugin.getConfig().getInt("tempo-limite-login-segundos", 60);
         BukkitTask task = plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
             if (player.isOnline() && !plugin.getSessionManager().isAuthenticated(player)) {
-                player.kickPlayer(ChatColor.RED + "Voce demorou muito para fazer login/registro.");
+                player.kickPlayer(ChatColor.RED + "Você demorou muito para fazer login/registro.");
             }
         }, timeoutSegundos * 20L);
         plugin.getSessionManager().setTimeoutTask(player, task);
+    }
+
+    private void enviarTitleAutenticacao(Player player, String titulo, String subtitulo) {
+        player.sendTitle(
+                ChatColor.GREEN + titulo,
+                ChatColor.YELLOW + subtitulo,
+                10,
+                60,
+                10
+        );
     }
 
     @EventHandler
@@ -107,7 +120,7 @@ public class AuthListener implements Listener {
         String cmd = event.getMessage().split(" ")[0].toLowerCase();
         if (!COMANDOS_PERMITIDOS.contains(cmd)) {
             event.setCancelled(true);
-            event.getPlayer().sendMessage(ChatColor.RED + "Faca login ou se registre antes de usar comandos.");
+            event.getPlayer().sendMessage(ChatColor.RED + "Faça login ou se registre antes de usar comandos.");
         }
     }
 
@@ -115,7 +128,7 @@ public class AuthListener implements Listener {
     public void onChat(AsyncPlayerChatEvent event) {
         if (precisaBloquear(event.getPlayer())) {
             event.setCancelled(true);
-            event.getPlayer().sendMessage(ChatColor.RED + "Faca login ou se registre antes de conversar no chat.");
+            event.getPlayer().sendMessage(ChatColor.RED + "Faça login ou se registre antes de conversar no chat.");
         }
     }
 
