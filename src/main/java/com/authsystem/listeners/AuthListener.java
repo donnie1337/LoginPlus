@@ -22,13 +22,10 @@ import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.scheduler.BukkitTask;
 
 import java.util.List;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 
 /** Handles the post-handshake authentication state and login protection. */
 public class AuthListener implements Listener {
     private final AuthSystem plugin;
-    private final ConcurrentHashMap<UUID, Boolean> preLoginPremiumResult = new ConcurrentHashMap<>();
     private static final List<String> COMANDOS_PERMITIDOS =
             List.of("/login", "/registro", "/register", "/cadastrar");
 
@@ -42,15 +39,6 @@ public class AuthListener implements Listener {
             event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_OTHER,
                     ChatColor.RED + "Muitas tentativas de login incorretas.\n"
                             + ChatColor.RED + "Tente novamente em " + restante + " segundos.");
-            return;
-        }
-
-        // Não consuma a prova premium aqui. Em online-mode=false o servidor pode
-        // disparar este evento mais de uma vez durante o desafio e o replay do Login Start.
-        // A prova só é consumida no PlayerJoinEvent, evitando uma corrida que fazia
-        // contas originais caírem no fluxo de registro.
-        if (plugin.getPremiumAuthenticator().isVerified(event.getName(), ip)) {
-            preLoginPremiumResult.put(event.getUniqueId(), true);
         }
     }
 
@@ -61,8 +49,10 @@ public class AuthListener implements Listener {
                 ? null
                 : player.getAddress().getAddress().getHostAddress();
 
-        boolean premium = preLoginPremiumResult.remove(player.getUniqueId()) != null;
-        if (premium && plugin.getPremiumAuthenticator().consumeVerified(player.getName(), ip) != null) {
+        // A prova premium é consumida somente depois que o jogador realmente entrou.
+        // Isso elimina a corrida entre o AsyncPlayerPreLoginEvent original e o Login Start
+        // reenviado após a confirmação da sessão na Mojang.
+        if (plugin.getPremiumAuthenticator().consumeVerified(player.getName(), ip) != null) {
             plugin.getSessionManager().markPremium(player.getUniqueId());
             plugin.getSessionManager().setAuthenticated(player, true);
             player.sendMessage(ChatColor.GREEN + "Conta original verificada! Login automatico realizado.");
@@ -88,7 +78,6 @@ public class AuthListener implements Listener {
 
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
-        preLoginPremiumResult.remove(event.getPlayer().getUniqueId());
         plugin.getSessionManager().clear(event.getPlayer());
         plugin.getPremiumAuthenticator().clear(event.getPlayer().getName(),
                 event.getPlayer().getAddress() == null ? null : event.getPlayer().getAddress().getAddress().getHostAddress());
@@ -96,7 +85,6 @@ public class AuthListener implements Listener {
 
     @EventHandler
     public void onKick(PlayerKickEvent event) {
-        preLoginPremiumResult.remove(event.getPlayer().getUniqueId());
         plugin.getSessionManager().clear(event.getPlayer());
         plugin.getPremiumAuthenticator().clear(event.getPlayer().getName(),
                 event.getPlayer().getAddress() == null ? null : event.getPlayer().getAddress().getAddress().getHostAddress());
