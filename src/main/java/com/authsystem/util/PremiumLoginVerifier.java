@@ -19,7 +19,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 import javax.crypto.Cipher;
 
-/** Performs the actual Mojang cryptographic session verification. */
 public final class PremiumLoginVerifier {
     private static final Logger LOGGER = Logger.getLogger("AuthSystem");
     private final KeyPair keyPair;
@@ -92,6 +91,7 @@ public final class PremiumLoginVerifier {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 String serverHash = serverHash(sharedSecret);
+                LOGGER.info("Verificando conta premium " + p.username() + " na Mojang (serverId=" + serverHash + ")");
                 return hasJoined(p.username(), serverHash);
             } catch (Exception e) {
                 LOGGER.warning("Premium verification failed for " + p.username() + ": " + e.getMessage());
@@ -114,10 +114,13 @@ public final class PremiumLoginVerifier {
                 + encodedName + "&serverId=" + encodedHash);
         HttpURLConnection connection = (HttpURLConnection) uri.toURL().openConnection();
         connection.setRequestMethod("GET");
-        connection.setConnectTimeout(5000);
-        connection.setReadTimeout(5000);
+        connection.setConnectTimeout(10000);
+        connection.setReadTimeout(10000);
         try {
-            if (connection.getResponseCode() != 200) {
+            int status = connection.getResponseCode();
+            if (status != 200) {
+                LOGGER.warning("Mojang hasJoined retornou HTTP " + status + " para " + username
+                        + ". A conta sera tratada como cracked.");
                 return Optional.empty();
             }
             try (InputStream input = connection.getInputStream()) {
@@ -125,19 +128,23 @@ public final class PremiumLoginVerifier {
                 String marker = "\"id\":\"";
                 int start = body.indexOf(marker);
                 if (start < 0) {
+                    LOGGER.warning("Mojang respondeu sem UUID para " + username + ". Resposta recebida: " + body);
                     return Optional.empty();
                 }
                 start += marker.length();
                 int end = body.indexOf('"', start);
                 if (end < 0) {
+                    LOGGER.warning("Resposta invalida da Mojang para " + username + ".");
                     return Optional.empty();
                 }
                 String raw = body.substring(start, end).replace("-", "").toLowerCase(Locale.ROOT);
                 if (!raw.matches("[0-9a-f]{32}")) {
+                    LOGGER.warning("UUID invalido retornado pela Mojang para " + username + ".");
                     return Optional.empty();
                 }
                 String uuid = raw.substring(0, 8) + "-" + raw.substring(8, 12) + "-"
                         + raw.substring(12, 16) + "-" + raw.substring(16, 20) + "-" + raw.substring(20);
+                LOGGER.info("Mojang confirmou a identidade premium de " + username + ".");
                 return Optional.of(UUID.fromString(uuid));
             }
         } finally {
