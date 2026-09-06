@@ -24,6 +24,7 @@ import org.bukkit.scheduler.BukkitTask;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.UUID;
 
 /** Controla o estado de autenticacao depois do handshake e a protecao de login. */
 public class AuthListener implements Listener {
@@ -46,14 +47,14 @@ public class AuthListener implements Listener {
         Player player = event.getPlayer();
         String ip = IpResolver.getPlayerIp(player);
         boolean registrado = plugin.getPlayerDataManager().isRegistered(player.getName());
-        String verificacaoPremium = null;
+        UUID verificacaoPremium = null;
 
         // O cadastro local tem prioridade. So consumimos uma verificacao premium quando nao existe conta local.
         if (!registrado) verificacaoPremium = plugin.getPremiumAuthenticator().consumeVerified(player.getName(), ip);
 
         if (!registrado && verificacaoPremium != null) {
             int limiteIps = plugin.getConfig().getInt("max-ips-por-conta", 1);
-            if (!plugin.getPremiumAccountManager().canUseIp(player.getUniqueId(), ip, limiteIps)) {
+            if (!plugin.getPremiumAccountManager().canUseIp(verificacaoPremium, ip, limiteIps)) {
                 player.kickPlayer(ChatColor.RED + "Esta conta original já atingiu o limite de " + limiteIps + " IP(s) permitido(s).");
                 return;
             }
@@ -62,7 +63,7 @@ public class AuthListener implements Listener {
                 player.kickPlayer(ChatColor.RED + "Este IP já atingiu o limite de " + limiteContas + " conta(s) conectada(s) ao mesmo tempo.");
                 return;
             }
-            plugin.getPremiumAccountManager().addIp(player.getUniqueId(), ip);
+            plugin.getPremiumAccountManager().addIp(verificacaoPremium, ip);
             plugin.getSessionManager().markPremium(player.getUniqueId());
             plugin.getSessionManager().setAuthenticated(player, true);
             enviarTitleAutenticacao(player, plugin.getMessagesManager().getTitleBemVindo(), "");
