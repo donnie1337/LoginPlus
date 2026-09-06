@@ -84,7 +84,6 @@ public class RegisterCommand implements CommandExecutor {
             return true;
         }
 
-        // O PBKDF2 de 600k iteracoes e CPU-bound: mantenha todo o calculo fora da thread principal.
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             try {
                 String salt = PasswordUtils.generateSalt();
@@ -99,16 +98,17 @@ public class RegisterCommand implements CommandExecutor {
                             return;
                         }
 
-                        if (!plugin.getPlayerDataManager().registerHashed(
-                                username, salt, hash, PasswordUtils.CURRENT_ITERATIONS, ip, playerId)) {
-                            player.sendMessage(ChatColor.RED + "Não foi possível concluir o registro. Tente novamente.");
+                        int limiteContas = plugin.getConfig().getInt("max-contas-por-ip", 1);
+                        if (!plugin.getSessionManager().tryRegisterAuthenticatedIp(ip, playerId, limiteContas)) {
+                            player.sendMessage(ChatColor.RED + "Este IP já atingiu o limite de " + limiteContas + " conta(s) conectada(s) ao mesmo tempo. Saia com a outra conta antes de registrar.");
                             return;
                         }
 
-                        int limiteContas = plugin.getConfig().getInt("max-contas-por-ip", 1);
-                        if (!plugin.getSessionManager().tryRegisterAuthenticatedIp(ip, playerId, limiteContas)) {
-                            player.sendMessage(ChatColor.RED + "Este IP já atingiu o limite de " + limiteContas
-                                    + " conta(s) conectada(s) ao mesmo tempo. Sua conta foi registrada, mas você precisa sair com a outra conta antes de jogar.");
+                        boolean registrado = plugin.getPlayerDataManager().registerHashed(
+                                username, salt, hash, PasswordUtils.CURRENT_ITERATIONS, ip, playerId);
+                        if (!registrado) {
+                            plugin.getSessionManager().unregisterAuthenticatedIp(ip, playerId);
+                            player.sendMessage(ChatColor.RED + "Não foi possível concluir o registro. Tente novamente.");
                             return;
                         }
 
