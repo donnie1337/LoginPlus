@@ -12,7 +12,9 @@ import java.util.Base64;
 public final class PasswordUtils {
     public static final int DEFAULT_MIN_PASSWORD_LENGTH = 7;
     public static final int DEFAULT_MAX_PASSWORD_LENGTH = 16;
-    public static final int CURRENT_ITERATIONS = 600_000;
+    public static final int DEFAULT_ITERATIONS = 10_000;
+    public static final int MIN_ITERATIONS = 100;
+    public static final int MAX_ITERATIONS = 10_000;
     public static final int LEGACY_ITERATIONS = 65_536;
     private static final int KEY_LENGTH_BITS = 256;
     private static final SecureRandom RANDOM = new SecureRandom();
@@ -37,11 +39,14 @@ public final class PasswordUtils {
     }
 
     public static String hash(String password, String saltBase64) {
-        return hash(password, saltBase64, CURRENT_ITERATIONS);
+        return hash(password, saltBase64, DEFAULT_ITERATIONS);
     }
 
     public static String hash(String password, String saltBase64, int iterations) {
         try {
+            if (iterations < MIN_ITERATIONS || iterations > MAX_ITERATIONS) {
+                throw new IllegalArgumentException("Numero de iteracoes PBKDF2 fora do intervalo permitido: " + iterations);
+            }
             byte[] salt = Base64.getDecoder().decode(saltBase64);
             PBEKeySpec spec = new PBEKeySpec(password.toCharArray(), salt, iterations, KEY_LENGTH_BITS);
             try {
@@ -61,7 +66,7 @@ public final class PasswordUtils {
             byte[] actual = Base64.getDecoder().decode(hash(password, saltBase64, iterations));
             byte[] expected = Base64.getDecoder().decode(expectedHash);
             return MessageDigest.isEqual(actual, expected);
-        } catch (IllegalArgumentException e) {
+        } catch (IllegalArgumentException | RuntimeException e) {
             return false;
         }
     }
