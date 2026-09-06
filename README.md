@@ -70,9 +70,9 @@ O fluxo funciona da seguinte maneira:
 8. Quando o jogador entra no servidor, `AuthListener` consome a prova e libera o acesso automaticamente.
 9. Caso a sessão não seja confirmada, o jogador segue o fluxo de conta Cracked.
 
-## Contas Cracked
+## Contas Piratas
 
-Contas que não são confirmadas como Premium utilizam o sistema tradicional de autenticação.
+Contas que não são confirmadas como Originais utilizam o sistema tradicional de autenticação.
 
 Para criar uma conta, utiliza-se:
 
