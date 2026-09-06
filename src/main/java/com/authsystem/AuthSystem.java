@@ -28,6 +28,8 @@ public class AuthSystem extends JavaPlugin {
     private static final int DEFAULT_MAX_MOJANG_CHECKS_PER_MINUTE = 30;
     private static final int DEFAULT_MAX_PBKDF2_CONCURRENT = 2;
     private static final int DEFAULT_MAX_PREMIUM_CHECKS_CONCURRENT = 4;
+    private static final int DEFAULT_MAX_PENDING_PREMIUM_GLOBAL = 100;
+    private static final int DEFAULT_MAX_PENDING_PREMIUM_PER_IP = 3;
 
     private PlayerDataManager playerDataManager;
     private SessionManager sessionManager;
@@ -40,6 +42,7 @@ public class AuthSystem extends JavaPlugin {
     private BukkitTask securityCleanupTask;
     private PremiumLoginVerifier premiumLoginVerifier;
     private RegisterCommand registerCommand;
+    private PremiumVerificationListener premiumVerificationListener;
 
     @Override
     public void onEnable() {
@@ -65,12 +68,16 @@ public class AuthSystem extends JavaPlugin {
         getCommand("registro").setExecutor(registerCommand);
         getServer().getPluginManager().registerEvents(new AuthListener(this), this);
         getServer().getPluginManager().registerEvents(new AntiBypassListener(this), this);
-        PacketEvents.getAPI().getEventManager().registerListener(new PremiumVerificationListener(this, premiumLoginVerifier, premiumAuthenticator));
+        premiumVerificationListener = new PremiumVerificationListener(this, premiumLoginVerifier, premiumAuthenticator,
+                getConfig().getInt("seguranca.max-handshakes-premium-pendentes", DEFAULT_MAX_PENDING_PREMIUM_GLOBAL),
+                getConfig().getInt("seguranca.max-handshakes-premium-por-ip", DEFAULT_MAX_PENDING_PREMIUM_PER_IP));
+        PacketEvents.getAPI().getEventManager().registerListener(premiumVerificationListener);
 
         securityCleanupTask = Bukkit.getScheduler().runTaskTimer(this, () -> {
             loginProtection.cleanupExpired();
             registerCommand.cleanupExpired();
             premiumLoginVerifier.cleanupExpired();
+            premiumVerificationListener.cleanupExpired();
         }, 20L * 60L, 20L * 60L);
 
         getLogger().info("AuthSystem ativado com autenticacao premium criptografica!");
@@ -80,6 +87,8 @@ public class AuthSystem extends JavaPlugin {
         getLogger().info("Limite de verificacoes Mojang por IP: " + getConfig().getInt("max-verificacoes-mojang-por-minuto", DEFAULT_MAX_MOJANG_CHECKS_PER_MINUTE));
         getLogger().info("Limite global de PBKDF2 simultaneos: " + getConfig().getInt("seguranca.max-processamentos-pbkdf2-simultaneos", DEFAULT_MAX_PBKDF2_CONCURRENT));
         getLogger().info("Limite global de verificacoes premium simultaneas: " + getConfig().getInt("seguranca.max-verificacoes-premium-simultaneas", DEFAULT_MAX_PREMIUM_CHECKS_CONCURRENT));
+        getLogger().info("Limite global de handshakes premium pendentes: " + getConfig().getInt("seguranca.max-handshakes-premium-pendentes", DEFAULT_MAX_PENDING_PREMIUM_GLOBAL));
+        getLogger().info("Limite de handshakes premium por IP: " + getConfig().getInt("seguranca.max-handshakes-premium-por-ip", DEFAULT_MAX_PENDING_PREMIUM_PER_IP));
     }
 
     private void ensureConfigDefaults() {
@@ -97,6 +106,8 @@ public class AuthSystem extends JavaPlugin {
         getConfig().addDefault("registro.cooldown-segundos", 30);
         getConfig().addDefault("seguranca.max-processamentos-pbkdf2-simultaneos", DEFAULT_MAX_PBKDF2_CONCURRENT);
         getConfig().addDefault("seguranca.max-verificacoes-premium-simultaneas", DEFAULT_MAX_PREMIUM_CHECKS_CONCURRENT);
+        getConfig().addDefault("seguranca.max-handshakes-premium-pendentes", DEFAULT_MAX_PENDING_PREMIUM_GLOBAL);
+        getConfig().addDefault("seguranca.max-handshakes-premium-por-ip", DEFAULT_MAX_PENDING_PREMIUM_PER_IP);
         getConfig().options().copyDefaults(true);
         saveConfig();
     }
@@ -109,6 +120,8 @@ public class AuthSystem extends JavaPlugin {
         int maxConsultasMojang = getConfig().getInt("max-verificacoes-mojang-por-minuto", DEFAULT_MAX_MOJANG_CHECKS_PER_MINUTE);
         int maxPbkdf2 = getConfig().getInt("seguranca.max-processamentos-pbkdf2-simultaneos", DEFAULT_MAX_PBKDF2_CONCURRENT);
         int maxPremium = getConfig().getInt("seguranca.max-verificacoes-premium-simultaneas", DEFAULT_MAX_PREMIUM_CHECKS_CONCURRENT);
+        int maxPendingGlobal = getConfig().getInt("seguranca.max-handshakes-premium-pendentes", DEFAULT_MAX_PENDING_PREMIUM_GLOBAL);
+        int maxPendingPerIp = getConfig().getInt("seguranca.max-handshakes-premium-por-ip", DEFAULT_MAX_PENDING_PREMIUM_PER_IP);
 
         if (minimoSenha < 1) { minimoSenha = PasswordUtils.DEFAULT_MIN_PASSWORD_LENGTH; getConfig().set("minimo-caracteres-senha", minimoSenha); }
         if (maximoSenha < minimoSenha) { maximoSenha = Math.max(PasswordUtils.DEFAULT_MAX_PASSWORD_LENGTH, minimoSenha); getConfig().set("maximo-caracteres-senha", maximoSenha); }
@@ -117,6 +130,8 @@ public class AuthSystem extends JavaPlugin {
         if (maxConsultasMojang < 0) getConfig().set("max-verificacoes-mojang-por-minuto", DEFAULT_MAX_MOJANG_CHECKS_PER_MINUTE);
         if (maxPbkdf2 < 1) getConfig().set("seguranca.max-processamentos-pbkdf2-simultaneos", DEFAULT_MAX_PBKDF2_CONCURRENT);
         if (maxPremium < 1) getConfig().set("seguranca.max-verificacoes-premium-simultaneas", DEFAULT_MAX_PREMIUM_CHECKS_CONCURRENT);
+        if (maxPendingGlobal < 1) getConfig().set("seguranca.max-handshakes-premium-pendentes", DEFAULT_MAX_PENDING_PREMIUM_GLOBAL);
+        if (maxPendingPerIp < 1) getConfig().set("seguranca.max-handshakes-premium-por-ip", DEFAULT_MAX_PENDING_PREMIUM_PER_IP);
         saveConfig();
     }
 
