@@ -45,7 +45,12 @@ public class LoginCommand implements CommandExecutor {
         String senha = args[0];
         String ip = player.getAddress() != null && player.getAddress().getAddress() != null
                 ? player.getAddress().getAddress().getHostAddress()
-                : "desconhecido";
+                : null;
+
+        if (ip == null || ip.isBlank()) {
+            player.sendMessage(ChatColor.RED + "Não foi possível identificar seu IP. Tente entrar novamente.");
+            return true;
+        }
 
         if (plugin.getPlayerDataManager().checkPassword(player.getName(), senha)) {
             int limiteIps = plugin.getConfig().getInt("max-ips-por-conta", 1);
@@ -63,10 +68,10 @@ public class LoginCommand implements CommandExecutor {
             return true;
         }
 
-        // Anti-bypass: a contagem de erros fica presa ao IP (não à sessão),
-        // então sair e entrar de novo no servidor não reseta as tentativas.
-        int max = plugin.getConfig().getInt("max-tentativas-login", 3);
-        long bloqueioMs = plugin.getConfig().getInt("bloqueio-apos-exceder-tentativas-minutos", 5) * 60_000L;
+        // A contagem de erros fica presa ao IP, entao sair e entrar novamente nao zera as tentativas.
+        int max = Math.max(1, plugin.getConfig().getInt("max-tentativas-login", 3));
+        long minutosBloqueio = Math.max(1L, plugin.getConfig().getLong("bloqueio-apos-exceder-tentativas-minutos", 5));
+        long bloqueioMs = minutosBloqueio * 60_000L;
         int tentativas = plugin.getLoginProtection().registrarErro(ip, max, bloqueioMs);
 
         if (tentativas > max) {
