@@ -82,6 +82,21 @@ public class LoginProtection {
         return r.tentativas;
     }
 
+    /** Remove entradas expiradas mesmo quando os mesmos IPs/contas nao voltam a acessar. */
+    public void cleanupExpired() {
+        long agora = System.currentTimeMillis();
+        limparMapa(porIp, agora);
+        limparMapa(porConta, agora);
+    }
+
+    private void limparMapa(ConcurrentHashMap<String, Registro> mapa, long agora) {
+        mapa.entrySet().removeIf(entry -> {
+            Registro r = entry.getValue();
+            if (r.bloqueadoAte != 0 && agora <= r.bloqueadoAte) return false;
+            return agora - r.ultimaTentativa > HISTORICO_EXPIRA_MS;
+        });
+    }
+
     public void limparAoLogar(String ip) {
         porIp.remove(ip);
     }
