@@ -35,3 +35,4 @@ jobs:
           unzip -l target/AuthSystem.jar | grep -q 'plugin.yml'
           unzip -l target/AuthSystem.jar | grep -q 'mensagens/titulos.yml'
           unzip -p target/AuthSystem.jar config.yml | grep -Fq 'max-contas-por-ip: 1'
+          unzip -p target/AuthSystem.jar config.yml | grep -Fq 'max-ips-por-conta: 1'
