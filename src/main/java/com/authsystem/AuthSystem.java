@@ -48,8 +48,17 @@ public class AuthSystem extends JavaPlugin {
         getLogger().info("Limite de IPs por conta: " + getConfig().getInt("max-ips-por-conta", 1));
     }
 
-    /** Garante que todas as configuracoes padrao existam no config.yml do servidor. */
+    /**
+     * Cria e atualiza as opcoes novas no config.yml sem apagar configuracoes existentes.
+     * Assim, servidores que ja possuem um config antigo recebem as novas opcoes automaticamente.
+     */
     private void ensureConfigDefaults() {
+        getConfig().addDefault("tempo-limite-login-segundos", 60);
+        getConfig().addDefault("max-tentativas-login", 3);
+        getConfig().addDefault("bloqueio-apos-exceder-tentativas-minutos", 5);
+        getConfig().addDefault("max-contas-por-ip", 1);
+        getConfig().addDefault("max-ips-por-conta", 1);
+
         getConfig().options().copyDefaults(true);
         saveConfig();
         reloadConfig();
