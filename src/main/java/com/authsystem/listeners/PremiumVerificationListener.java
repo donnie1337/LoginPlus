@@ -23,14 +23,13 @@ import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.net.InetSocketAddress;
 import java.security.GeneralSecurityException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 
-/** Desafio real para verificar contas premium em um servidor offline-mode. */
+/** Desafio criptografico usado para verificar contas premium em servidor offline-mode. */
 public final class PremiumVerificationListener extends PacketListenerAbstract {
     private static final Logger LOGGER = Logger.getLogger("AuthSystem");
     private static final long FALLBACK_MS = 15000L;
@@ -61,7 +60,7 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
     private void handleLoginStart(PacketReceiveEvent event) {
         WrapperLoginClientLoginStart packet = new WrapperLoginClientLoginStart(event);
         String username = packet.getUsername();
-        if (username == null || username.length() < 2 || username.length() > 16) {
+        if (username == null || !username.matches("[A-Za-z0-9_]{3,16}")) {
             return;
         }
 
@@ -123,7 +122,7 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
         try {
             sharedSecret = verifier.decrypt(encryptedSecret);
             if (sharedSecret.length != 16) {
-                throw new GeneralSecurityException("Invalid AES secret length: " + sharedSecret.length);
+                throw new GeneralSecurityException("Chave AES invalida: tamanho " + sharedSecret.length);
             }
             enableEncryption(user.getChannel(), sharedSecret);
         } catch (GeneralSecurityException | IllegalArgumentException e) {
