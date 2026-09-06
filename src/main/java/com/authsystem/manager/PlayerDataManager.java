@@ -76,10 +76,6 @@ public class PlayerDataManager {
         return total;
     }
 
-    public boolean hasAccountForIp(String ip) {
-        return countAccountsForIp(ip) > 0;
-    }
-
     public void register(String username, String password, String ip) {
         String salt = PasswordUtils.generateSalt();
         String hash = PasswordUtils.hash(password, salt);
@@ -90,10 +86,6 @@ public class PlayerDataManager {
         save();
     }
 
-    public void register(String username, String password) {
-        register(username, password, null);
-    }
-
     public boolean checkPassword(String username, String password) {
         String salt = data.getString(key(username) + ".salt");
         String hash = data.getString(key(username) + ".senha");
@@ -101,10 +93,5 @@ public class PlayerDataManager {
             return false;
         }
         return PasswordUtils.verify(password, salt, hash);
-    }
-
-    public void changePassword(String username, String newPassword) {
-        String ip = data.getString(key(username) + ".ip");
-        register(username, newPassword, ip);
     }
 }
