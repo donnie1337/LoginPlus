@@ -50,8 +50,14 @@ public class LoginCommand implements CommandExecutor {
             return true;
         }
 
+        String username = player.getName();
         if (plugin.getLoginProtection().estaBloqueado(ip)) {
             player.sendMessage(ChatColor.RED + "Este IP está temporariamente bloqueado por excesso de tentativas. Tente novamente mais tarde.");
+            return true;
+        }
+        if (plugin.getLoginProtection().estaBloqueadoConta(username)) {
+            long restante = plugin.getLoginProtection().segundosRestantesConta(username);
+            player.sendMessage(ChatColor.RED + "Esta conta está temporariamente bloqueada por excesso de tentativas. Tente novamente em " + restante + " segundos.");
             return true;
         }
 
@@ -61,7 +67,6 @@ public class LoginCommand implements CommandExecutor {
             return true;
         }
 
-        String username = player.getName();
         String senha = args[0];
         PasswordData passwordData = plugin.getPlayerDataManager().getPasswordData(username);
         if (passwordData == null) {
@@ -95,7 +100,7 @@ public class LoginCommand implements CommandExecutor {
                     if (senhaCorreta) {
                         concluirLogin(player, username, ip);
                     } else {
-                        registrarFalha(player, ip);
+                        registrarFalha(player, username, ip);
                     }
                 } finally {
                     verificacoesEmAndamento.remove(playerId);
@@ -124,13 +129,17 @@ public class LoginCommand implements CommandExecutor {
         plugin.getSessionManager().setAuthenticated(player, true);
         plugin.getSessionManager().cancelTimeout(player);
         plugin.getLoginProtection().limparAoLogar(ip);
+        plugin.getLoginProtection().limparContaAoLogar(username);
         player.sendMessage(ChatColor.GREEN + "Login efetuado com sucesso! Bem-vindo(a) de volta.");
     }
 
-    private void registrarFalha(Player player, String ip) {
+    private void registrarFalha(Player player, String username, String ip) {
         int max = Math.max(1, plugin.getConfig().getInt("max-tentativas-login", 3));
         long minutosBloqueio = Math.max(1L, plugin.getConfig().getLong("bloqueio-apos-exceder-tentativas-minutos", 5));
-        int tentativas = plugin.getLoginProtection().registrarErro(ip, max, minutosBloqueio * 60_000L);
+        long bloqueioMs = minutosBloqueio * 60_000L;
+        int tentativasIp = plugin.getLoginProtection().registrarErro(ip, max, bloqueioMs);
+        int tentativasConta = plugin.getLoginProtection().registrarErroConta(username, max, bloqueioMs);
+        int tentativas = Math.max(tentativasIp, tentativasConta);
         if (tentativas > max) player.kickPlayer(ChatColor.RED + "Muitas tentativas de senha incorreta. Tente novamente mais tarde.");
         else player.sendMessage(ChatColor.RED + "Senha incorreta! (" + tentativas + "/" + max + ")");
     }
