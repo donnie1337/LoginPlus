@@ -45,13 +45,15 @@ public class AuthSystem extends JavaPlugin {
                 new PremiumVerificationListener(this, premiumLoginVerifier, premiumAuthenticator));
 
         getLogger().info("AuthSystem ativado com autenticacao premium criptografica!");
+        getLogger().info("Senha: " + getConfig().getInt("minimo-caracteres-senha", 7)
+                + " a " + getConfig().getInt("maximo-caracteres-senha", 16) + " caracteres.");
         getLogger().info("Limite de contas por IP: " + getConfig().getInt("max-contas-por-ip", 1));
         getLogger().info("Limite de IPs por conta: " + getConfig().getInt("max-ips-por-conta", 1));
     }
 
     /**
      * Cria e atualiza as opcoes novas no config.yml sem apagar configuracoes existentes.
-     * Tambem remove configuracoes antigas que foram substituidas.
+     * Tambem migra configuracoes antigas que foram substituidas.
      */
     private void ensureConfigDefaults() {
         getConfig().addDefault("tempo-limite-login-segundos", 60);
@@ -62,9 +64,13 @@ public class AuthSystem extends JavaPlugin {
         getConfig().addDefault("max-contas-por-ip", 1);
         getConfig().addDefault("max-ips-por-conta", 1);
 
-        // A opcao antiga foi substituida pelas configuracoes de minimo e maximo.
-        getConfig().set("tamanho-minimo-senha", null);
+        // Se o servidor ainda usa a configuracao antiga, migra para os limites atuais.
+        if (getConfig().contains("tamanho-minimo-senha")) {
+            getConfig().set("minimo-caracteres-senha", PasswordUtils.DEFAULT_MIN_PASSWORD_LENGTH);
+            getConfig().set("maximo-caracteres-senha", PasswordUtils.DEFAULT_MAX_PASSWORD_LENGTH);
+        }
 
+        getConfig().set("tamanho-minimo-senha", null);
         getConfig().options().copyDefaults(true);
         saveConfig();
         reloadConfig();

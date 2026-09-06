@@ -42,3 +42,7 @@ jobs:
             echo 'Configuracao antiga tamanho-minimo-senha encontrada no JAR.'
             exit 1
           fi
+          unzip -p target/AuthSystem.jar plugin.yml | grep -Fq "version: '1.1.1'"
+          grep -Fq 'password.length() > maxLength' src/main/java/com/authsystem/util/PasswordUtils.java
+          grep -Fq 'max-contas-por-ip' src/main/java/com/authsystem/commands/RegisterCommand.java
+          grep -Fq 'max-ips-por-conta' src/main/java/com/authsystem/manager/PlayerDataManager.java
