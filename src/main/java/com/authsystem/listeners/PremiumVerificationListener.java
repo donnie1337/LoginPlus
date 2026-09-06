@@ -68,22 +68,20 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
         UUID playerUuid = packet.getPlayerUUID().orElse(null);
         String ip = user.getAddress().getAddress().getHostAddress();
 
-        // The real Login Start must be replayed after the optional premium challenge.
         event.setCancelled(true);
 
-        // Do not query the Mojang name API first. A name lookup is not authentication
-        // and can fail/rate-limit independently of the real session verification.
         byte[] verifyToken = verifier.start(key, username);
         connections.put(key, new PendingConnection(username, version, playerUuid, ip));
         user.sendPacket(new WrapperLoginServerEncryptionRequest(
                 "", verifier.getPublicKey(), verifyToken, true));
 
-        // Cracked clients may not answer an Encryption Request. After a short grace
-        // period, continue the normal offline login flow instead of leaving them stuck.
+        // Cracked clients may not answer. A single atomic remove decides who owns
+        // the continuation, avoiding a race with the asynchronous Mojang response.
         plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-            if (connections.remove(key) != null && verifier.hasPending(key)) {
+            PendingConnection current = connections.remove(key);
+            if (current != null) {
                 verifier.remove(key);
-                resume(user, version, username, playerUuid);
+                resume(user, current.version(), current.username(), current.playerUuid());
             }
         }, FALLBACK_MS / 50L);
     }
@@ -107,8 +105,6 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
             return;
         }
 
-        // Validate the challenge before enabling AES. This prevents an invalid RSA
-        // response from changing the connection's encryption state.
         if (!verifier.validateToken(key, encryptedToken.get())) {
             LOGGER.warning("Invalid premium verify token for " + pending.username());
             failAndResume(key, pending, user);
@@ -128,26 +124,31 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
             return;
         }
 
-        // The client switches to AES after sending Encryption Response, so the server
-        // must also switch before sending Login Success or the replayed Login Start.
-        verifier.verify(key, sharedSecret).thenAccept(result -> {
-            connections.remove(key, pending);
-            result.ifPresentOrElse(
-                    uuid -> {
-                        authenticator.markVerified(pending.username(), pending.ip(), uuid);
-                        LOGGER.info("Premium identity verified for " + pending.username());
-                        resume(user, pending.version(), pending.username(), pending.playerUuid());
-                    },
-                    () -> {
-                        LOGGER.info("Mojang session not confirmed for " + pending.username()
-                                + "; continuing as cracked.");
-                        resume(user, pending.version(), pending.username(), pending.playerUuid());
-                    });
-        });
+        // Mojang verification is asynchronous. The continuation that touches the
+        // PacketEvents connection is explicitly returned to the Bukkit main thread.
+        verifier.verify(key, sharedSecret).thenAccept(result ->
+                plugin.getServer().getScheduler().runTask(plugin, () -> {
+                    if (!connections.remove(key, pending)) {
+                        return;
+                    }
+                    result.ifPresentOrElse(
+                            uuid -> {
+                                authenticator.markVerified(pending.username(), pending.ip(), uuid);
+                                LOGGER.info("Premium identity verified for " + pending.username());
+                                resume(user, pending.version(), pending.username(), pending.playerUuid());
+                            },
+                            () -> {
+                                LOGGER.info("Mojang session not confirmed for " + pending.username()
+                                        + "; continuing as cracked.");
+                                resume(user, pending.version(), pending.username(), pending.playerUuid());
+                            });
+                }));
     }
 
     private void failAndResume(String key, PendingConnection pending, User user) {
-        connections.remove(key, pending);
+        if (!connections.remove(key, pending)) {
+            return;
+        }
         verifier.remove(key);
         resume(user, pending.version(), pending.username(), pending.playerUuid());
     }
