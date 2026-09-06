@@ -45,7 +45,9 @@ public class RegisterCommand implements CommandExecutor {
 
         String senha = args[0];
         String confirmar = args[1];
-        String erroSenha = PasswordUtils.validatePassword(senha);
+        int minSenha = plugin.getConfig().getInt("minimo-caracteres-senha", PasswordUtils.DEFAULT_MIN_PASSWORD_LENGTH);
+        int maxSenha = plugin.getConfig().getInt("maximo-caracteres-senha", PasswordUtils.DEFAULT_MAX_PASSWORD_LENGTH);
+        String erroSenha = PasswordUtils.validatePassword(senha, minSenha, maxSenha);
 
         if (erroSenha != null) {
             player.sendMessage(ChatColor.RED + erroSenha);
