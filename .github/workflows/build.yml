@@ -30,7 +30,7 @@ jobs:
 
       - name: Validar JAR e configurações
         run: |
-          JAR=$(find target -maxdepth 1 -type f -name '*.jar' ! -name '*original*' | head -n 1)
+          JAR=$(find target -maxdepth 1 -type f -name '*.jar' ! -name '*original*' -print -quit)
           if [ -z "$JAR" ]; then
             echo 'Nenhum JAR do plugin foi gerado em target/.'
             echo 'Conteudo de target/:'
@@ -39,18 +39,27 @@ jobs:
           fi
 
           echo "Validando JAR: $JAR"
-          unzip -l "$JAR" | grep -q 'config.yml'
-          unzip -l "$JAR" | grep -q 'plugin.yml'
-          unzip -l "$JAR" | grep -q 'mensagens/titulos.yml'
-          unzip -p "$JAR" config.yml | grep -Fq 'minimo-caracteres-senha: 7'
-          unzip -p "$JAR" config.yml | grep -Fq 'maximo-caracteres-senha: 16'
-          unzip -p "$JAR" config.yml | grep -Fq 'max-contas-por-ip: 1'
-          unzip -p "$JAR" config.yml | grep -Fq 'max-ips-por-conta: 1'
-          if unzip -p "$JAR" config.yml | grep -Fq 'tamanho-minimo-senha:'; then
+          rm -rf /tmp/authsystem-jar
+          mkdir -p /tmp/authsystem-jar
+          unzip -q "$JAR" -d /tmp/authsystem-jar
+
+          test -f /tmp/authsystem-jar/config.yml
+          test -f /tmp/authsystem-jar/plugin.yml
+          test -f /tmp/authsystem-jar/mensagens/titulos.yml
+
+          grep -Fq 'minimo-caracteres-senha: 7' /tmp/authsystem-jar/config.yml
+          grep -Fq 'maximo-caracteres-senha: 16' /tmp/authsystem-jar/config.yml
+          grep -Fq 'max-contas-por-ip: 1' /tmp/authsystem-jar/config.yml
+          grep -Fq 'max-ips-por-conta: 1' /tmp/authsystem-jar/config.yml
+
+          if grep -Fq 'tamanho-minimo-senha:' /tmp/authsystem-jar/config.yml; then
             echo 'Configuracao antiga tamanho-minimo-senha encontrada no JAR.'
             exit 1
           fi
-          unzip -p "$JAR" plugin.yml | grep -Fq "version: '1.1.1'"
+
+          grep -Eq '^version:[[:space:]]*[\"'"']?1\.1\.1[\"'"']?[[:space:]]*$' /tmp/authsystem-jar/plugin.yml
           grep -Fq 'password.length() > maxLength' src/main/java/com/authsystem/util/PasswordUtils.java
           grep -Fq 'max-contas-por-ip' src/main/java/com/authsystem/commands/RegisterCommand.java
           grep -Fq 'max-ips-por-conta' src/main/java/com/authsystem/manager/PlayerDataManager.java
+
+          echo 'Validacao do JAR concluida com sucesso.'
