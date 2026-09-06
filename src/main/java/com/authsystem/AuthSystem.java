@@ -27,13 +27,9 @@ public class AuthSystem extends JavaPlugin {
     @Override
     public void onEnable() {
         File arquivoConfig = new File(getDataFolder(), "config.yml");
-        boolean configNovo = !arquivoConfig.exists();
-
-        // Se o arquivo nao existir, cria o config completo usando o config.yml do plugin.
-        if (configNovo) {
+        if (!arquivoConfig.exists()) {
             saveDefaultConfig();
         } else {
-            // Se ja existir, carrega o arquivo atual sem substituir configuracoes do servidor.
             reloadConfig();
         }
 
@@ -59,14 +55,11 @@ public class AuthSystem extends JavaPlugin {
         getLogger().info("AuthSystem ativado com autenticacao premium criptografica!");
         getLogger().info("Senha: " + getConfig().getInt("minimo-caracteres-senha", 7)
                 + " a " + getConfig().getInt("maximo-caracteres-senha", 16) + " caracteres.");
-        getLogger().info("Limite de contas por IP: " + getConfig().getInt("max-contas-por-ip", 1));
+        getLogger().info("Limite de contas autenticadas por IP: " + getConfig().getInt("max-contas-por-ip", 1));
         getLogger().info("Limite de IPs por conta: " + getConfig().getInt("max-ips-por-conta", 1));
     }
 
-    /**
-     * Adiciona apenas as opcoes que ainda nao existem, preservando configuracoes personalizadas.
-     * Nunca remove nem migra opcoes antigas do arquivo existente.
-     */
+    /** Adiciona apenas opcoes ausentes, preservando tudo que o servidor ja configurou. */
     private void ensureConfigDefaults() {
         getConfig().addDefault("tempo-limite-login-segundos", 60);
         getConfig().addDefault("max-tentativas-login", 3);
@@ -76,7 +69,6 @@ public class AuthSystem extends JavaPlugin {
         getConfig().addDefault("max-contas-por-ip", 1);
         getConfig().addDefault("max-ips-por-conta", 1);
 
-        // copyDefaults(true) preenche somente as opcoes que estiverem faltando no arquivo.
         getConfig().options().copyDefaults(true);
         saveConfig();
     }
