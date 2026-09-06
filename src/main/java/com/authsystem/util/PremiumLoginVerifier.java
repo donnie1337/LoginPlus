@@ -66,18 +66,31 @@ public final class PremiumLoginVerifier {
         return cipher.doFinal(encrypted);
     }
 
-    public CompletableFuture<Optional<UUID>> verify(String connectionKey, byte[] sharedSecret,
-                                                     byte[] encryptedToken) {
+    /** Validates the client response token without consuming the pending session. */
+    public boolean validateToken(String connectionKey, byte[] encryptedToken) {
+        Pending p = pending.get(connectionKey);
+        if (p == null || encryptedToken == null) {
+            return false;
+        }
+        try {
+            byte[] token = decrypt(encryptedToken);
+            return Arrays.equals(token, p.verifyToken());
+        } catch (GeneralSecurityException e) {
+            LOGGER.fine("Invalid premium verify token: " + e.getMessage());
+            return false;
+        }
+    }
+
+    public CompletableFuture<Optional<UUID>> verify(String connectionKey, byte[] sharedSecret) {
         Pending p = pending.remove(connectionKey);
         if (p == null) {
             return CompletableFuture.completedFuture(Optional.empty());
         }
+        if (sharedSecret == null || sharedSecret.length != 16) {
+            return CompletableFuture.completedFuture(Optional.empty());
+        }
         return CompletableFuture.supplyAsync(() -> {
             try {
-                byte[] token = decrypt(encryptedToken);
-                if (!Arrays.equals(token, p.verifyToken())) {
-                    return Optional.empty();
-                }
                 String serverHash = serverHash(sharedSecret);
                 return hasJoined(p.username(), serverHash);
             } catch (Exception e) {
@@ -89,7 +102,6 @@ public final class PremiumLoginVerifier {
 
     private String serverHash(byte[] sharedSecret) throws Exception {
         MessageDigest digest = MessageDigest.getInstance("SHA-1");
-        digest.update(new byte[0]);
         digest.update(sharedSecret);
         digest.update(keyPair.getPublic().getEncoded());
         return new java.math.BigInteger(digest.digest()).toString(16);
