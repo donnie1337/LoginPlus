@@ -72,6 +72,12 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
         String key = connectionKey(user);
         event.setCancelled(true);
         byte[] verifyToken = verifier.start(key, username);
+        if (verifyToken == null) {
+            // Ja existe um desafio ativo para esta conexao. Nao sobrescreva token/estado.
+            LOGGER.fine("Handshake premium duplicado ignorado para " + username + " (" + key + ").");
+            return;
+        }
+
         connections.put(key, new PendingConnection(username, version, playerUuid, ip));
         user.sendPacket(new WrapperLoginServerEncryptionRequest("", verifier.getPublicKey(), verifyToken, true));
         BukkitTask fallback = plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
