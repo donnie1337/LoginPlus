@@ -44,6 +44,8 @@ public class AuthSystem extends JavaPlugin {
                 new PremiumVerificationListener(this, premiumLoginVerifier, premiumAuthenticator));
 
         getLogger().info("AuthSystem ativado com autenticacao premium criptografica!");
+        getLogger().info("Limite de contas por IP: " + getConfig().getInt("max-contas-por-ip", 1));
+        getLogger().info("Limite de IPs por conta: " + getConfig().getInt("max-ips-por-conta", 1));
     }
 
     private void ensureConfigDefaults() {
@@ -61,6 +63,7 @@ public class AuthSystem extends JavaPlugin {
 
         if (alterado) {
             saveConfig();
+            reloadConfig();
         }
     }
 
