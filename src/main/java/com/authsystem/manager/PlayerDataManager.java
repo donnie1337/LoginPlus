@@ -8,6 +8,8 @@ import org.bukkit.configuration.file.YamlConfiguration;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.logging.Level;
 
 /**
@@ -68,12 +70,67 @@ public class PlayerDataManager {
 
         int total = 0;
         for (String username : players.getKeys(false)) {
-            String contaIp = players.getString(username + ".ip");
-            if (ip.equals(contaIp)) {
+            List<String> ips = getIps(username);
+            if (ips.contains(ip)) {
                 total++;
             }
         }
         return total;
+    }
+
+    /**
+     * Verifica se a conta pode ser utilizada a partir do IP informado.
+     * Mantem compatibilidade com contas antigas que possuem apenas o campo "ip".
+     */
+    public boolean canUseIp(String username, String ip, int limiteIps) {
+        if (ip == null || ip.isBlank() || limiteIps <= 0) {
+            return true;
+        }
+
+        List<String> ips = getIps(username);
+        if (ips.contains(ip)) {
+            return true;
+        }
+        return ips.size() < limiteIps;
+    }
+
+    /** Adiciona o IP a lista de IPs permitidos da conta, sem duplicar. */
+    public void addIp(String username, String ip) {
+        if (ip == null || ip.isBlank()) {
+            return;
+        }
+
+        String base = key(username);
+        List<String> ips = getIps(username);
+        if (!ips.contains(ip)) {
+            ips.add(ip);
+            data.set(base + ".ips", ips);
+        }
+
+        // Mantem o campo antigo para compatibilidade com dados ja existentes.
+        if (!data.contains(base + ".ip")) {
+            data.set(base + ".ip", ip);
+        }
+        save();
+    }
+
+    /** Retorna todos os IPs conhecidos da conta, incluindo o formato antigo. */
+    private List<String> getIps(String username) {
+        String base = key(username);
+        List<String> ips = new ArrayList<>();
+
+        String ipAntigo = data.getString(base + ".ip");
+        if (ipAntigo != null && !ipAntigo.isBlank()) {
+            ips.add(ipAntigo);
+        }
+
+        List<String> ipsSalvos = data.getStringList(base + ".ips");
+        for (String ip : ipsSalvos) {
+            if (ip != null && !ip.isBlank() && !ips.contains(ip)) {
+                ips.add(ip);
+            }
+        }
+        return ips;
     }
 
     public void register(String username, String password, String ip) {
@@ -82,6 +139,9 @@ public class PlayerDataManager {
         data.set(key(username) + ".senha", hash);
         data.set(key(username) + ".salt", salt);
         data.set(key(username) + ".ip", ip);
+        if (ip != null && !ip.isBlank()) {
+            data.set(key(username) + ".ips", List.of(ip));
+        }
         data.set(key(username) + ".registrado-em", System.currentTimeMillis());
         save();
     }
