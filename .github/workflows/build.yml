@@ -23,7 +23,7 @@ jobs:
         run: curl -fsSL -o BuildTools.jar https://hub.spigotmc.org/jenkins/job/BuildTools/lastSuccessfulBuild/artifact/target/BuildTools.jar
 
       - name: Generate Spigot API
-        run: java -jar BuildTools.jar --rev 26.2 --compile API
+        run: java -jar BuildTools.jar --rev 26.2 --compile SPIGOT
 
       - name: Build
         run: mvn -B clean package
