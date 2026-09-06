@@ -71,38 +71,52 @@ public class RegisterCommand implements CommandExecutor {
         String username = player.getName();
         // O PBKDF2 de 600k iteracoes e CPU-bound: mantenha todo o calculo fora da thread principal.
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-            String salt = PasswordUtils.generateSalt();
-            String hash = PasswordUtils.hash(senha, salt, PasswordUtils.CURRENT_ITERATIONS);
+            try {
+                String salt = PasswordUtils.generateSalt();
+                String hash = PasswordUtils.hash(senha, salt, PasswordUtils.CURRENT_ITERATIONS);
 
-            Bukkit.getScheduler().runTask(plugin, () -> {
+                Bukkit.getScheduler().runTask(plugin, () -> {
+                    try {
+                        if (!player.isOnline() || !player.getUniqueId().equals(playerId)) return;
+                        if (plugin.getSessionManager().isAuthenticated(player)) return;
+                        if (plugin.getPlayerDataManager().isRegistered(username)) {
+                            player.sendMessage(ChatColor.RED + "Você já possui uma conta registrada. Use /login <senha>.");
+                            return;
+                        }
+
+                        if (!plugin.getPlayerDataManager().registerHashed(
+                                username, salt, hash, PasswordUtils.CURRENT_ITERATIONS, ip, playerId)) {
+                            player.sendMessage(ChatColor.RED + "Não foi possível concluir o registro. Tente novamente.");
+                            return;
+                        }
+
+                        int limiteContas = plugin.getConfig().getInt("max-contas-por-ip", 1);
+                        if (!plugin.getSessionManager().tryRegisterAuthenticatedIp(ip, playerId, limiteContas)) {
+                            player.sendMessage(ChatColor.RED + "Este IP já atingiu o limite de " + limiteContas
+                                    + " conta(s) conectada(s) ao mesmo tempo. Sua conta foi registrada, mas você precisa sair com a outra conta antes de jogar.");
+                            return;
+                        }
+
+                        plugin.getSessionManager().setAuthenticated(player, true);
+                        plugin.getSessionManager().cancelTimeout(player);
+                        player.sendMessage(ChatColor.GREEN + "Registro concluído com sucesso! Você já está logado.");
+                    } finally {
+                        registrosEmAndamento.remove(playerId);
+                    }
+                });
+            } catch (Exception e) {
+                plugin.getLogger().warning("Falha ao gerar hash da senha durante o registro de " + username + ": " + e.getMessage());
+                registrosEmAndamento.remove(playerId);
                 try {
-                    if (!player.isOnline() || !player.getUniqueId().equals(playerId)) return;
-                    if (plugin.getSessionManager().isAuthenticated(player)) return;
-                    if (plugin.getPlayerDataManager().isRegistered(username)) {
-                        player.sendMessage(ChatColor.RED + "Você já possui uma conta registrada. Use /login <senha>.");
-                        return;
-                    }
-
-                    if (!plugin.getPlayerDataManager().registerHashed(
-                            username, salt, hash, PasswordUtils.CURRENT_ITERATIONS, ip, playerId)) {
-                        player.sendMessage(ChatColor.RED + "Não foi possível concluir o registro. Tente novamente.");
-                        return;
-                    }
-
-                    int limiteContas = plugin.getConfig().getInt("max-contas-por-ip", 1);
-                    if (!plugin.getSessionManager().tryRegisterAuthenticatedIp(ip, playerId, limiteContas)) {
-                        player.sendMessage(ChatColor.RED + "Este IP já atingiu o limite de " + limiteContas
-                                + " conta(s) conectada(s) ao mesmo tempo. Sua conta foi registrada, mas você precisa sair com a outra conta antes de jogar.");
-                        return;
-                    }
-
-                    plugin.getSessionManager().setAuthenticated(player, true);
-                    plugin.getSessionManager().cancelTimeout(player);
-                    player.sendMessage(ChatColor.GREEN + "Registro concluído com sucesso! Você já está logado.");
-                } finally {
-                    registrosEmAndamento.remove(playerId);
+                    Bukkit.getScheduler().runTask(plugin, () -> {
+                        if (player.isOnline()) {
+                            player.sendMessage(ChatColor.RED + "Ocorreu um erro ao processar seu registro. Tente novamente.");
+                        }
+                    });
+                } catch (Exception ignored) {
+                    // O plugin pode estar sendo desligado; nesse caso não há tarefa Bukkit a executar.
                 }
-            });
+            }
         });
 
         player.sendMessage(ChatColor.YELLOW + "Processando seu registro com segurança...");
