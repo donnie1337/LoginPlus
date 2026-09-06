@@ -15,6 +15,8 @@ import com.authsystem.util.PasswordUtils;
 import com.github.retrooper.packetevents.PacketEvents;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import java.io.File;
+
 public class AuthSystem extends JavaPlugin {
     private PlayerDataManager playerDataManager;
     private SessionManager sessionManager;
@@ -24,7 +26,17 @@ public class AuthSystem extends JavaPlugin {
 
     @Override
     public void onEnable() {
-        saveDefaultConfig();
+        File arquivoConfig = new File(getDataFolder(), "config.yml");
+        boolean configNovo = !arquivoConfig.exists();
+
+        // Se o arquivo nao existir, cria o config completo usando o config.yml do plugin.
+        if (configNovo) {
+            saveDefaultConfig();
+        } else {
+            // Se ja existir, carrega o arquivo atual sem substituir configuracoes do servidor.
+            reloadConfig();
+        }
+
         ensureConfigDefaults();
         saveResource("mensagens/titulos.yml", false);
 
@@ -52,8 +64,8 @@ public class AuthSystem extends JavaPlugin {
     }
 
     /**
-     * Garante que o config.yml tenha todas as opcoes atuais sem apagar configuracoes personalizadas.
-     * Tambem remove a antiga opcao de tamanho minimo da senha para evitar conflito.
+     * Adiciona apenas as opcoes que ainda nao existem, preservando configuracoes personalizadas.
+     * Se existir uma configuracao antiga, ela e migrada para as chaves atuais.
      */
     private void ensureConfigDefaults() {
         getConfig().addDefault("tempo-limite-login-segundos", 60);
@@ -64,17 +76,21 @@ public class AuthSystem extends JavaPlugin {
         getConfig().addDefault("max-contas-por-ip", 1);
         getConfig().addDefault("max-ips-por-conta", 1);
 
-        boolean configAntigaEncontrada = getConfig().contains("tamanho-minimo-senha");
-        if (configAntigaEncontrada) {
-            getConfig().set("minimo-caracteres-senha", PasswordUtils.DEFAULT_MIN_PASSWORD_LENGTH);
-            getConfig().set("maximo-caracteres-senha", PasswordUtils.DEFAULT_MAX_PASSWORD_LENGTH);
+        // Migra servidores que ainda possuem a chave antiga sem alterar outras configuracoes.
+        if (getConfig().contains("tamanho-minimo-senha")) {
+            if (!getConfig().contains("minimo-caracteres-senha")) {
+                getConfig().set("minimo-caracteres-senha", PasswordUtils.DEFAULT_MIN_PASSWORD_LENGTH);
+            }
+            if (!getConfig().contains("maximo-caracteres-senha")) {
+                getConfig().set("maximo-caracteres-senha", PasswordUtils.DEFAULT_MAX_PASSWORD_LENGTH);
+            }
             getConfig().set("tamanho-minimo-senha", null);
-            getLogger().info("Configuracao antiga detectada: tamanho-minimo-senha foi substituida por minimo-caracteres-senha e maximo-caracteres-senha.");
+            getLogger().info("Configuracao antiga 'tamanho-minimo-senha' migrada para as novas opcoes de senha.");
         }
 
+        // copyDefaults(true) preenche somente o que estiver faltando no arquivo.
         getConfig().options().copyDefaults(true);
         saveConfig();
-        reloadConfig();
     }
 
     @Override
