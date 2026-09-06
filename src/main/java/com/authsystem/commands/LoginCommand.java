@@ -43,11 +43,19 @@ public class LoginCommand implements CommandExecutor {
         }
 
         String senha = args[0];
-        String ip = player.getAddress() != null
+        String ip = player.getAddress() != null && player.getAddress().getAddress() != null
                 ? player.getAddress().getAddress().getHostAddress()
                 : "desconhecido";
 
         if (plugin.getPlayerDataManager().checkPassword(player.getName(), senha)) {
+            int limiteIps = plugin.getConfig().getInt("max-ips-por-conta", 1);
+
+            if (!plugin.getPlayerDataManager().canUseIp(player.getName(), ip, limiteIps)) {
+                player.sendMessage(ChatColor.RED + "Esta conta já atingiu o limite de " + limiteIps + " IP(s) permitido(s).");
+                return true;
+            }
+
+            plugin.getPlayerDataManager().addIp(player.getName(), ip);
             plugin.getSessionManager().setAuthenticated(player, true);
             plugin.getSessionManager().cancelTimeout(player);
             plugin.getLoginProtection().limparAoLogar(ip);
