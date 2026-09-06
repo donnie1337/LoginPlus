@@ -32,8 +32,7 @@ AuthSystem/
     │   └── util/
     │       ├── PasswordUtils.java         (hash PBKDF2 + salt)
     │       ├── PremiumAuthenticator.java  (guarda provas premium verificadas temporariamente)
-    │       ├── PremiumLoginVerifier.java  (desafio RSA/AES e verificação na sessão Mojang)
-    │       └── PremiumChecker.java        (consulta auxiliar de conta premium)
+    │       └── PremiumLoginVerifier.java  (desafio RSA/AES e verificação na sessão Mojang)
     └── resources/
         ├── plugin.yml
         └── config.yml
@@ -72,9 +71,11 @@ Três camadas trabalham juntas para impedir que alguém contorne o login:
    não anda, não fala no chat, não usa comandos além de `/login` e
    `/registro`, não quebra/coloca blocos, não toma dano nem perde fome.
 2. **Proteções indiretas (`AntiBypassListener`)** — cobre formas menos
-   óbvias de escapar do congelamento: teleporte, abrir baús/inventários,
-   montar em cavalo/barco, interagir com entidades, atirar flechas/itens,
-   comer, mobs mirando no jogador, e o próprio jogador causando dano em algo.
+   óbvias de escapar do congelamento: teleporte de jogadores por causas
+   não relacionadas a plugins, abrir baús/inventários, montar em cavalo/barco,
+   interagir com entidades, atirar flechas/itens, comer, mobs mirando no jogador,
+   e o próprio jogador causando dano em algo. Teleportes causados por plugins
+   são permitidos para que sistemas de spawn/lobby possam posicionar o jogador.
 3. **Bloqueio por senha errada (`LoginProtection`)** — é a parte que você
    pediu: se errar a senha mais vezes do que `max-tentativas-login`
    permite (padrão: 3 erros, expulso no 4º), o jogador é desconectado.
@@ -105,6 +106,15 @@ O endereço IP utilizado no cadastro é armazenado junto aos dados da conta.
 Assim, o limite é aplicado aos novos registros sem impedir o login de contas
 que já existem.
 
+## Regras de senha
+
+As senhas das contas precisam seguir estas regras no `/registro`:
+
+- Mínimo de **7 caracteres**.
+- Máximo de **16 caracteres**.
+- Pelo menos **uma letra**.
+- Pelo menos **um número**.
+
 ## Comandos
 
 | Comando | Descrição |
@@ -118,6 +128,5 @@ que já existem.
 tempo-limite-login-segundos: 60             # tempo para logar antes do kick
 max-tentativas-login: 3                     # erros de senha permitidos antes do kick
 bloqueio-apos-exceder-tentativas-minutos: 5 # bloqueio de IP apos exceder o limite acima
-tamanho-minimo-senha: 4                     # tamanho minimo da senha no /registro
 max-contas-por-ip: 1                        # quantidade maxima de contas por IP
 ```
