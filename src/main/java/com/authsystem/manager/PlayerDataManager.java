@@ -49,7 +49,7 @@ public class PlayerDataManager {
     public void shutdown() {
         synchronized (this) {
             shuttingDown = true;
-            asyncSaveScheduled = false;
+            dataVersion.incrementAndGet();
         }
         save();
     }
@@ -87,6 +87,8 @@ public class PlayerDataManager {
 
             synchronized (ioLock) {
                 synchronized (this) {
+                    // O shutdown pode ter ocorrido enquanto este snapshot aguardava o lock de I/O.
+                    // Nesse caso, nunca permita que um snapshot antigo sobrescreva o save final.
                     if (shuttingDown) {
                         asyncSaveScheduled = false;
                         return;
@@ -159,6 +161,10 @@ public class PlayerDataManager {
         return ips;
     }
 
+    /**
+     * Mantido por compatibilidade com a API interna. O fluxo normal de registro usa
+     * registerHashed(), que calcula PBKDF2 fora da thread principal.
+     */
     public synchronized boolean register(String username, String password, String ip, UUID uuid) {
         if (password == null) return false;
         String salt = PasswordUtils.generateSalt();
@@ -191,15 +197,22 @@ public class PlayerDataManager {
         return data.getInt(key(username) + ".iteracoes", PasswordUtils.LEGACY_ITERATIONS) < plugin.getPasswordIterations();
     }
 
+    /** Atualiza o hash somente se a versão calculada for pelo menos tão forte quanto a atual. */
     public synchronized void upgradePasswordHash(String username, String salt, String hash, int iterations) {
         if (username == null || salt == null || hash == null || iterations < 1 || !isRegistered(username)) return;
         String base = key(username);
+        int currentIterations = data.getInt(base + ".iteracoes", PasswordUtils.LEGACY_ITERATIONS);
+        if (iterations < currentIterations) return;
         data.set(base + ".salt", salt);
         data.set(base + ".senha", hash);
         data.set(base + ".iteracoes", iterations);
         scheduleAsyncSave();
     }
 
+    /**
+     * Mantido por compatibilidade. Para o fluxo de login, prefira upgradePasswordHash()
+     * com o PBKDF2 calculado assincronamente pelo comando.
+     */
     public synchronized void upgradePassword(String username, String password) {
         if (password == null || !isRegistered(username)) return;
         String salt = PasswordUtils.generateSalt();
