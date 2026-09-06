@@ -54,7 +54,7 @@ public class RegisterCommand implements CommandExecutor {
             return true;
         }
 
-        if (!plugin.getPlayerDataManager().register(player.getName(), senha, ip)) {
+        if (!plugin.getPlayerDataManager().register(player.getName(), senha, ip, player.getUniqueId())) {
             player.sendMessage(ChatColor.RED + "Não foi possível concluir o registro. Tente novamente.");
             return true;
         }
