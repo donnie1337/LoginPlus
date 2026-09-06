@@ -38,37 +38,114 @@ public class PlayerDataManager {
 
     private void load() {
         if (!file.exists()) {
-            try {
-                File parent = file.getParentFile();
-                if (parent != null) Files.createDirectories(parent.toPath());
-                Files.createFile(file.toPath());
-            } catch (IOException e) {
-                plugin.getLogger().log(Level.SEVERE, "Nao foi possivel criar playerdata.yml", e);
-            }
+            plugin.getDataFolder().mkdirs();
+            try { file.createNewFile(); }
+            catch (IOException e) { plugin.getLogger().log(Level.SEVERE, "Nao foi possivel criar playerdata.yml", e); }
         }
         data = YamlConfiguration.loadConfiguration(file);
     }
 
-    private String key(String username) {
-        return "contas." + username.toLowerCase(Locale.ROOT);
+    /** Fecha o agendamento async e grava o estado mais recente sem permitir que um snapshot antigo o sobrescreva. */
+    public void shutdown() {
+        synchronized (this) {
+            shuttingDown = true;
+            asyncSaveScheduled = false;
+        }
+        save();
     }
 
-    public synchronized boolean isRegistered(String username) {
-        return username != null && data.contains(key(username));
+    /** Salva imediatamente, serializando a escrita com qualquer save async em andamento. */
+    public void save() {
+        final String snapshot;
+        synchronized (this) { snapshot = data.saveToString(); }
+        synchronized (ioLock) {
+            try { Files.writeString(file.toPath(), snapshot, StandardCharsets.UTF_8); }
+            catch (IOException e) { plugin.getLogger().log(Level.SEVERE, "Nao foi possivel salvar playerdata.yml", e); }
+        }
     }
 
-    public synchronized boolean hasPassword(String username) {
-        return isRegistered(username) && data.getString(key(username) + ".senha") != null;
+    private synchronized void scheduleAsyncSave() {
+        if (shuttingDown) return;
+        dataVersion.incrementAndGet();
+        if (asyncSaveScheduled) return;
+        asyncSaveScheduled = true;
+        plugin.getServer().getScheduler().runTaskLaterAsynchronously(plugin, this::flushAsync, 1L);
     }
 
-    public synchronized UUID getUuid(String username) {
-        String value = data.getString(key(username) + ".uuid");
-        if (value == null) return null;
-        try { return UUID.fromString(value); } catch (IllegalArgumentException e) { return null; }
+    private void flushAsync() {
+        while (true) {
+            final String snapshot;
+            final long snapshotVersion;
+            synchronized (this) {
+                if (shuttingDown) {
+                    asyncSaveScheduled = false;
+                    return;
+                }
+                snapshot = data.saveToString();
+                snapshotVersion = dataVersion.get();
+            }
+
+            synchronized (ioLock) {
+                synchronized (this) {
+                    if (shuttingDown) {
+                        asyncSaveScheduled = false;
+                        return;
+                    }
+                }
+                try {
+                    Files.writeString(file.toPath(), snapshot, StandardCharsets.UTF_8);
+                } catch (IOException e) {
+                    plugin.getLogger().log(Level.SEVERE, "Nao foi possivel salvar playerdata.yml", e);
+                    break;
+                }
+            }
+
+            synchronized (this) {
+                if (shuttingDown) {
+                    asyncSaveScheduled = false;
+                    return;
+                }
+                if (dataVersion.get() == snapshotVersion) {
+                    asyncSaveScheduled = false;
+                    return;
+                }
+            }
+        }
+
+        synchronized (this) { asyncSaveScheduled = false; }
     }
 
-    public synchronized List<String> getIpsPublic(String username) {
-        return new ArrayList<>(getIps(username));
+    private String key(String username) { return "players." + username.toLowerCase(Locale.ROOT); }
+    public synchronized boolean isRegistered(String username) { return username != null && data.contains(key(username) + ".senha"); }
+
+    public synchronized PasswordData getPasswordData(String username) {
+        if (username == null) return null;
+        String base = key(username);
+        String salt = data.getString(base + ".salt");
+        String hash = data.getString(base + ".senha");
+        if (salt == null || hash == null) return null;
+        int iteracoes = data.getInt(base + ".iteracoes", PasswordUtils.LEGACY_ITERATIONS);
+        return new PasswordData(salt, hash, iteracoes);
+    }
+
+    public record PasswordData(String salt, String hash, int iterations) {}
+
+    public synchronized boolean canUseIp(String username, String ip, int limiteIps) {
+        if (ip == null || ip.isBlank() || limiteIps <= 0) return true;
+        List<String> ips = getIps(username);
+        return ips.contains(ip) || ips.size() < limiteIps;
+    }
+
+    public synchronized void addIp(String username, String ip) {
+        if (username == null || ip == null || ip.isBlank()) return;
+        String base = key(username);
+        List<String> ips = getIps(username);
+        if (!ips.contains(ip)) {
+            ips.add(ip);
+            data.set(base + ".ips", ips);
+        }
+        if (!data.contains(base + ".ip")) data.set(base + ".ip", ip);
+        scheduleAsyncSave();
     }
 
     private List<String> getIps(String username) {
@@ -85,8 +162,9 @@ public class PlayerDataManager {
     public synchronized boolean register(String username, String password, String ip, UUID uuid) {
         if (password == null) return false;
         String salt = PasswordUtils.generateSalt();
-        String hash = PasswordUtils.hash(password, salt, plugin.getPasswordIterations());
-        return registerHashed(username, salt, hash, plugin.getPasswordIterations(), ip, uuid);
+        int iterations = plugin.getPasswordIterations();
+        String hash = PasswordUtils.hash(password, salt, iterations);
+        return registerHashed(username, salt, hash, iterations, ip, uuid);
     }
 
     public synchronized boolean registerHashed(String username, String salt, String hash, int iterations, String ip, UUID uuid) {
@@ -125,53 +203,8 @@ public class PlayerDataManager {
     public synchronized void upgradePassword(String username, String password) {
         if (password == null || !isRegistered(username)) return;
         String salt = PasswordUtils.generateSalt();
-        String hash = PasswordUtils.hash(password, salt, plugin.getPasswordIterations());
-        upgradePasswordHash(username, salt, hash, plugin.getPasswordIterations());
-    }
-
-    private PasswordData getPasswordData(String username) {
-        if (username == null) return null;
-        String base = key(username);
-        String hash = data.getString(base + ".senha");
-        String salt = data.getString(base + ".salt");
-        if (hash == null || salt == null) return null;
-        int iterations = data.getInt(base + ".iteracoes", PasswordUtils.LEGACY_ITERATIONS);
-        return new PasswordData(hash, salt, iterations);
-    }
-
-    private record PasswordData(String hash, String salt, int iterations) {}
-
-    private void scheduleAsyncSave() {
-        if (shuttingDown || asyncSaveScheduled) return;
-        asyncSaveScheduled = true;
-        long version = dataVersion.incrementAndGet();
-        plugin.getServer().getScheduler().runTaskLaterAsynchronously(plugin, () -> saveAsync(version), 1L);
-    }
-
-    private void saveAsync(long version) {
-        FileConfiguration snapshot;
-        synchronized (this) {
-            if (shuttingDown) return;
-            snapshot = new YamlConfiguration();
-            for (String key : data.getKeys(true)) {
-                if (!data.isConfigurationSection(key)) snapshot.set(key, data.get(key));
-            }
-            asyncSaveScheduled = false;
-        }
-        synchronized (ioLock) {
-            try { snapshot.save(file); }
-            catch (IOException e) { plugin.getLogger().log(Level.SEVERE, "Nao foi possivel salvar playerdata.yml", e); }
-        }
-        synchronized (this) {
-            if (!shuttingDown && version < dataVersion.get()) scheduleAsyncSave();
-        }
-    }
-
-    public void shutdown() {
-        shuttingDown = true;
-        synchronized (this) {
-            try { data.save(file); }
-            catch (IOException e) { plugin.getLogger().log(Level.SEVERE, "Nao foi possivel salvar playerdata.yml no shutdown", e); }
-        }
+        int iterations = plugin.getPasswordIterations();
+        String hash = PasswordUtils.hash(password, salt, iterations);
+        upgradePasswordHash(username, salt, hash, iterations);
     }
 }
