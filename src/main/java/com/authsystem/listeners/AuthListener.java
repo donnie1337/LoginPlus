@@ -60,10 +60,14 @@ public class AuthListener implements Listener {
         boolean registrado = plugin.getPlayerDataManager().isRegistered(player.getName());
 
         if (registrado) {
-            enviarTitleAutenticacao(player, "Bem-vindo", "Faça o login");
+            enviarTitleAutenticacao(player,
+                    plugin.getMessagesManager().getTitleBemVindo(),
+                    plugin.getMessagesManager().getTitleLogin());
             player.sendMessage(ChatColor.YELLOW + "Bem-vindo de volta! Use /login <senha> para entrar.");
         } else {
-            enviarTitleAutenticacao(player, "Bem-vindo", "Faça o registro");
+            enviarTitleAutenticacao(player,
+                    plugin.getMessagesManager().getTitleBemVindo(),
+                    plugin.getMessagesManager().getTitleRegistro());
             player.sendMessage(ChatColor.YELLOW + "Bem-vindo! Use /registro <senha> <confirmar-senha> para criar sua conta.");
         }
 
@@ -77,13 +81,7 @@ public class AuthListener implements Listener {
     }
 
     private void enviarTitleAutenticacao(Player player, String titulo, String subtitulo) {
-        player.sendTitle(
-                ChatColor.GREEN + titulo,
-                ChatColor.YELLOW + subtitulo,
-                10,
-                60,
-                10
-        );
+        player.sendTitle(titulo, subtitulo, 10, 60, 10);
     }
 
     @EventHandler
