@@ -77,7 +77,7 @@ public class RegisterCommand implements CommandExecutor {
             return true;
         }
 
-        int maxProcessamentos = Math.max(1, plugin.getConfig().getInt("registro.max-processamentos-simultaneos", 2));
+        int maxProcessamentos = Math.max(1, plugin.getConfig().getInt("seguranca.max-processamentos-pbkdf2-simultaneos", 2));
         if (!plugin.getHashProcessingLimiter().tryAcquire(maxProcessamentos)) {
             registrosEmAndamento.remove(playerId);
             player.sendMessage(ChatColor.RED + "O servidor está processando muitas senhas no momento. Aguarde alguns segundos e tente novamente.");
