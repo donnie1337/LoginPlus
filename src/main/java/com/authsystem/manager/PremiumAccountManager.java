@@ -11,12 +11,15 @@ import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Level;
 
 /** Guarda os IPs usados por contas premium identificadas pelo UUID da Mojang. */
 public final class PremiumAccountManager {
     private final AuthSystem plugin;
     private final File file;
+    private final Object ioLock = new Object();
+    private final AtomicLong dataVersion = new AtomicLong();
     private FileConfiguration data;
     private boolean asyncSaveScheduled;
 
@@ -43,22 +46,16 @@ public final class PremiumAccountManager {
     }
 
     public synchronized boolean canUseIp(UUID uuid, String ip, int limiteIps) {
-        if (uuid == null || ip == null || ip.isBlank() || limiteIps <= 0) {
-            return true;
-        }
+        if (uuid == null || ip == null || ip.isBlank() || limiteIps <= 0) return true;
         List<String> ips = getIps(uuid);
         return ips.contains(ip) || ips.size() < limiteIps;
     }
 
     public synchronized void addIp(UUID uuid, String ip) {
-        if (uuid == null || ip == null || ip.isBlank()) {
-            return;
-        }
+        if (uuid == null || ip == null || ip.isBlank()) return;
         String base = key(uuid);
         List<String> ips = getIps(uuid);
-        if (ips.contains(ip)) {
-            return;
-        }
+        if (ips.contains(ip)) return;
         ips.add(ip);
         data.set(base + ".ips", ips);
         scheduleAsyncSave();
@@ -67,37 +64,62 @@ public final class PremiumAccountManager {
     private List<String> getIps(UUID uuid) {
         List<String> ips = new ArrayList<>();
         for (String ip : data.getStringList(key(uuid) + ".ips")) {
-            if (ip != null && !ip.isBlank() && !ips.contains(ip)) {
-                ips.add(ip);
-            }
+            if (ip != null && !ip.isBlank() && !ips.contains(ip)) ips.add(ip);
         }
         return ips;
     }
 
     /** Salva imediatamente; usado no desligamento para garantir que o estado em memoria seja persistido. */
-    public synchronized void save() {
-        try {
-            data.save(file);
-        } catch (IOException e) {
-            plugin.getLogger().log(Level.SEVERE, "Nao foi possivel salvar premiumdata.yml", e);
+    public void save() {
+        final String snapshot;
+        synchronized (this) {
+            snapshot = data.saveToString();
         }
-    }
-
-    /** Evita I/O de disco na thread principal durante logins premium. */
-    private synchronized void scheduleAsyncSave() {
-        if (asyncSaveScheduled) return;
-        asyncSaveScheduled = true;
-        plugin.getServer().getScheduler().runTaskLaterAsynchronously(plugin, () -> {
-            final String snapshot;
-            synchronized (this) {
-                snapshot = data.saveToString();
-                asyncSaveScheduled = false;
-            }
+        synchronized (ioLock) {
             try {
                 Files.writeString(file.toPath(), snapshot, StandardCharsets.UTF_8);
             } catch (IOException e) {
                 plugin.getLogger().log(Level.SEVERE, "Nao foi possivel salvar premiumdata.yml", e);
             }
-        }, 1L);
+        }
+    }
+
+    /** Persiste snapshots em ordem e repete se houver uma alteracao durante a escrita. */
+    private synchronized void scheduleAsyncSave() {
+        dataVersion.incrementAndGet();
+        if (asyncSaveScheduled) return;
+        asyncSaveScheduled = true;
+        plugin.getServer().getScheduler().runTaskLaterAsynchronously(plugin, this::flushAsync, 1L);
+    }
+
+    private void flushAsync() {
+        while (true) {
+            final long snapshotVersion;
+            final String snapshot;
+            synchronized (this) {
+                snapshotVersion = dataVersion.get();
+                snapshot = data.saveToString();
+            }
+
+            synchronized (ioLock) {
+                try {
+                    Files.writeString(file.toPath(), snapshot, StandardCharsets.UTF_8);
+                } catch (IOException e) {
+                    plugin.getLogger().log(Level.SEVERE, "Nao foi possivel salvar premiumdata.yml", e);
+                    break;
+                }
+            }
+
+            synchronized (this) {
+                if (snapshotVersion == dataVersion.get()) {
+                    asyncSaveScheduled = false;
+                    return;
+                }
+            }
+        }
+
+        synchronized (this) {
+            asyncSaveScheduled = false;
+        }
     }
 }
