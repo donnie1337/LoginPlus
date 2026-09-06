@@ -2,6 +2,7 @@ package com.authsystem.commands;
 
 import com.authsystem.AuthSystem;
 import com.authsystem.manager.PlayerDataManager.PasswordData;
+import com.authsystem.util.HashProcessingLimiter;
 import com.authsystem.util.IpResolver;
 import com.authsystem.util.PasswordUtils;
 import org.bukkit.Bukkit;
@@ -67,9 +68,17 @@ public class LoginCommand implements CommandExecutor {
             return true;
         }
 
+        int maxProcessamentos = Math.max(1, plugin.getConfig().getInt("registro.max-processamentos-simultaneos", 2));
+        if (!plugin.getHashProcessingLimiter().tryAcquire(maxProcessamentos)) {
+            verificacoesEmAndamento.remove(playerId);
+            player.sendMessage(ChatColor.RED + "O servidor está processando muitas senhas no momento. Aguarde alguns segundos e tente novamente.");
+            return true;
+        }
+
         String senha = args[0];
         PasswordData passwordData = plugin.getPlayerDataManager().getPasswordData(username);
         if (passwordData == null) {
+            plugin.getHashProcessingLimiter().release();
             verificacoesEmAndamento.remove(playerId);
             player.sendMessage(ChatColor.RED + "Não foi possível verificar sua conta. Tente novamente.");
             return true;
@@ -114,6 +123,8 @@ public class LoginCommand implements CommandExecutor {
                         player.sendMessage(ChatColor.RED + "Não foi possível verificar sua senha. Tente novamente.");
                     }
                 });
+            } finally {
+                plugin.getHashProcessingLimiter().release();
             }
         });
 
