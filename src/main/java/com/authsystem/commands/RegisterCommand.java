@@ -9,13 +9,20 @@ import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class RegisterCommand implements CommandExecutor {
     private final AuthSystem plugin;
     private final Set<UUID> registrosEmAndamento = ConcurrentHashMap.newKeySet();
+    private final ConcurrentHashMap<String, Deque<Long>> tentativasPorIp = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Deque<Long>> tentativasPorNome = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Long> ultimoRegistroPorIp = new ConcurrentHashMap<>();
+    private final AtomicInteger processamentosAtivos = new AtomicInteger();
 
     public RegisterCommand(AuthSystem plugin) { this.plugin = plugin; }
 
@@ -41,6 +48,17 @@ public class RegisterCommand implements CommandExecutor {
             player.sendMessage(ChatColor.RED + "Uso correto: /registro <senha> <confirmar-senha>");
             return true;
         }
+
+        String ip = player.getAddress() != null && player.getAddress().getAddress() != null
+                ? player.getAddress().getAddress().getHostAddress() : null;
+        if (ip == null || ip.isBlank()) {
+            player.sendMessage(ChatColor.RED + "Não foi possível identificar seu IP. Tente entrar novamente.");
+            return true;
+        }
+
+        String username = player.getName();
+        if (!permitirTentativaRegistro(player, ip, username)) return true;
+
         String senha = args[0];
         String confirmar = args[1];
         int minSenha = plugin.getConfig().getInt("minimo-caracteres-senha", PasswordUtils.DEFAULT_MIN_PASSWORD_LENGTH);
@@ -55,20 +73,19 @@ public class RegisterCommand implements CommandExecutor {
             return true;
         }
 
-        String ip = player.getAddress() != null && player.getAddress().getAddress() != null
-                ? player.getAddress().getAddress().getHostAddress() : null;
-        if (ip == null || ip.isBlank()) {
-            player.sendMessage(ChatColor.RED + "Não foi possível identificar seu IP. Tente entrar novamente.");
-            return true;
-        }
-
         UUID playerId = player.getUniqueId();
         if (!registrosEmAndamento.add(playerId)) {
             player.sendMessage(ChatColor.YELLOW + "Seu registro já está sendo processado. Aguarde um instante.");
             return true;
         }
 
-        String username = player.getName();
+        int maxProcessamentos = Math.max(1, plugin.getConfig().getInt("registro.max-processamentos-simultaneos", 2));
+        if (!reservarProcessamento(maxProcessamentos)) {
+            registrosEmAndamento.remove(playerId);
+            player.sendMessage(ChatColor.RED + "O servidor está processando muitos registros no momento. Aguarde alguns segundos e tente novamente.");
+            return true;
+        }
+
         // O PBKDF2 de 600k iteracoes e CPU-bound: mantenha todo o calculo fora da thread principal.
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             try {
@@ -116,10 +133,57 @@ public class RegisterCommand implements CommandExecutor {
                 } catch (Exception ignored) {
                     // O plugin pode estar sendo desligado; nesse caso não há tarefa Bukkit a executar.
                 }
+            } finally {
+                processamentosAtivos.decrementAndGet();
             }
         });
 
         player.sendMessage(ChatColor.YELLOW + "Processando seu registro com segurança...");
         return true;
+    }
+
+    private boolean permitirTentativaRegistro(Player player, String ip, String username) {
+        int maxTentativas = Math.max(0, plugin.getConfig().getInt("registro.max-tentativas-por-ip", 3));
+        long janelaMs = Math.max(1L, plugin.getConfig().getLong("registro.janela-minutos", 5)) * 60_000L;
+        long agora = System.currentTimeMillis();
+
+        if (maxTentativas > 0) {
+            if (!registrarEVerificarLimite(tentativasPorIp, ip, agora, janelaMs, maxTentativas)
+                    || !registrarEVerificarLimite(tentativasPorNome, username.toLowerCase(java.util.Locale.ROOT), agora, janelaMs, maxTentativas)) {
+                player.sendMessage(ChatColor.RED + "Muitas tentativas de registro. Aguarde alguns minutos antes de tentar novamente.");
+                return false;
+            }
+        }
+
+        long cooldownMs = Math.max(0L, plugin.getConfig().getLong("registro.cooldown-segundos", 30)) * 1000L;
+        if (cooldownMs > 0) {
+            Long ultimo = ultimoRegistroPorIp.get(ip);
+            if (ultimo != null && agora - ultimo < cooldownMs) {
+                long restante = Math.max(1L, (cooldownMs - (agora - ultimo) + 999L) / 1000L);
+                player.sendMessage(ChatColor.RED + "Aguarde " + restante + " segundo(s) antes de tentar registrar novamente.");
+                return false;
+            }
+            ultimoRegistroPorIp.put(ip, agora);
+        }
+        return true;
+    }
+
+    private boolean registrarEVerificarLimite(ConcurrentHashMap<String, Deque<Long>> mapa, String chave,
+                                               long agora, long janelaMs, int maxTentativas) {
+        Deque<Long> fila = mapa.computeIfAbsent(chave, ignored -> new ArrayDeque<>());
+        synchronized (fila) {
+            while (!fila.isEmpty() && agora - fila.peekFirst() >= janelaMs) fila.removeFirst();
+            if (fila.size() >= maxTentativas) return false;
+            fila.addLast(agora);
+            return true;
+        }
+    }
+
+    private boolean reservarProcessamento(int limite) {
+        while (true) {
+            int atual = processamentosAtivos.get();
+            if (atual >= limite) return false;
+            if (processamentosAtivos.compareAndSet(atual, atual + 1)) return true;
+        }
     }
 }
