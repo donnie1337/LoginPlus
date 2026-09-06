@@ -55,24 +55,29 @@ public class PlayerDataManager {
         return data.contains(key(username) + ".senha");
     }
 
-    /** Verifica se o IP ja esta vinculado a uma conta cadastrada. */
-    public boolean hasAccountForIp(String ip) {
+    /** Conta quantas contas cadastradas estao vinculadas ao IP informado. */
+    public int countAccountsForIp(String ip) {
         if (ip == null || ip.isBlank()) {
-            return false;
+            return 0;
         }
 
         ConfigurationSection players = data.getConfigurationSection("players");
         if (players == null) {
-            return false;
+            return 0;
         }
 
+        int total = 0;
         for (String username : players.getKeys(false)) {
             String contaIp = players.getString(username + ".ip");
             if (ip.equals(contaIp)) {
-                return true;
+                total++;
             }
         }
-        return false;
+        return total;
+    }
+
+    public boolean hasAccountForIp(String ip) {
+        return countAccountsForIp(ip) > 0;
     }
 
     public void register(String username, String password, String ip) {
