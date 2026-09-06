@@ -22,6 +22,7 @@ public final class PremiumAccountManager {
     private final AtomicLong dataVersion = new AtomicLong();
     private FileConfiguration data;
     private boolean asyncSaveScheduled;
+    private volatile boolean shuttingDown;
 
     public PremiumAccountManager(AuthSystem plugin) {
         this.plugin = plugin;
@@ -69,6 +70,15 @@ public final class PremiumAccountManager {
         return ips;
     }
 
+    /** Salva imediatamente e impede qualquer snapshot async antigo de sobrescrever o estado final. */
+    public void shutdown() {
+        synchronized (this) {
+            shuttingDown = true;
+            asyncSaveScheduled = false;
+        }
+        save();
+    }
+
     /** Salva imediatamente; usado no desligamento para garantir que o estado em memoria seja persistido. */
     public void save() {
         final String snapshot;
@@ -84,8 +94,9 @@ public final class PremiumAccountManager {
         }
     }
 
-    /** Persiste snapshots em ordem e repete se houver uma alteracao durante a escrita. */
+    /** Persiste snapshots em ordem e cancela qualquer gravacao ao iniciar o desligamento. */
     private synchronized void scheduleAsyncSave() {
+        if (shuttingDown) return;
         dataVersion.incrementAndGet();
         if (asyncSaveScheduled) return;
         asyncSaveScheduled = true;
@@ -97,11 +108,21 @@ public final class PremiumAccountManager {
             final long snapshotVersion;
             final String snapshot;
             synchronized (this) {
+                if (shuttingDown) {
+                    asyncSaveScheduled = false;
+                    return;
+                }
                 snapshotVersion = dataVersion.get();
                 snapshot = data.saveToString();
             }
 
             synchronized (ioLock) {
+                synchronized (this) {
+                    if (shuttingDown) {
+                        asyncSaveScheduled = false;
+                        return;
+                    }
+                }
                 try {
                     Files.writeString(file.toPath(), snapshot, StandardCharsets.UTF_8);
                 } catch (IOException e) {
@@ -111,6 +132,10 @@ public final class PremiumAccountManager {
             }
 
             synchronized (this) {
+                if (shuttingDown) {
+                    asyncSaveScheduled = false;
+                    return;
+                }
                 if (snapshotVersion == dataVersion.get()) {
                     asyncSaveScheduled = false;
                     return;
