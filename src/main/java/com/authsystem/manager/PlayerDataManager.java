@@ -70,6 +70,19 @@ public class PlayerDataManager {
     private String key(String username) { return "players." + username.toLowerCase(); }
     public synchronized boolean isRegistered(String username) { return username != null && data.contains(key(username) + ".senha"); }
 
+    /** Snapshot imutavel dos dados necessarios para verificar uma senha fora da thread principal. */
+    public synchronized PasswordData getPasswordData(String username) {
+        if (username == null) return null;
+        String base = key(username);
+        String salt = data.getString(base + ".salt");
+        String hash = data.getString(base + ".senha");
+        if (salt == null || hash == null) return null;
+        int iteracoes = data.getInt(base + ".iteracoes", PasswordUtils.LEGACY_ITERATIONS);
+        return new PasswordData(salt, hash, iteracoes);
+    }
+
+    public record PasswordData(String salt, String hash, int iterations) {}
+
     public synchronized boolean canUseIp(String username, String ip, int limiteIps) {
         if (ip == null || ip.isBlank() || limiteIps <= 0) return true;
         List<String> ips = getIps(username);
@@ -99,17 +112,22 @@ public class PlayerDataManager {
         return ips;
     }
 
-    /** Registra a conta, guardando UUID, data de registro e os dados de acesso iniciais. */
+    /** Mantem a API antiga, mas o hash deve preferencialmente ser calculado fora da thread principal. */
     public synchronized boolean register(String username, String password, String ip, UUID uuid) {
-        if (username == null || username.isBlank() || isRegistered(username) || ip == null || ip.isBlank() || uuid == null) return false;
-        int minSenha = plugin.getConfig().getInt("minimo-caracteres-senha", PasswordUtils.DEFAULT_MIN_PASSWORD_LENGTH);
-        int maxSenha = plugin.getConfig().getInt("maximo-caracteres-senha", PasswordUtils.DEFAULT_MAX_PASSWORD_LENGTH);
-        if (PasswordUtils.validatePassword(password, minSenha, maxSenha) != null) return false;
+        if (password == null) return false;
         String salt = PasswordUtils.generateSalt();
+        String hash = PasswordUtils.hash(password, salt);
+        return registerHashed(username, salt, hash, PasswordUtils.CURRENT_ITERATIONS, ip, uuid);
+    }
+
+    /** Persiste um hash ja calculado; nao executa PBKDF2. Deve ser chamado na thread principal. */
+    public synchronized boolean registerHashed(String username, String salt, String hash, int iterations, String ip, UUID uuid) {
+        if (username == null || username.isBlank() || isRegistered(username) || ip == null || ip.isBlank()
+                || uuid == null || salt == null || hash == null || iterations < 1) return false;
         String base = key(username);
-        data.set(base + ".senha", PasswordUtils.hash(password, salt));
+        data.set(base + ".senha", hash);
         data.set(base + ".salt", salt);
-        data.set(base + ".iteracoes", PasswordUtils.CURRENT_ITERATIONS);
+        data.set(base + ".iteracoes", iterations);
         data.set(base + ".uuid", uuid.toString());
         data.set(base + ".ip", ip);
         data.set(base + ".ips", List.of(ip));
@@ -118,25 +136,31 @@ public class PlayerDataManager {
         return true;
     }
 
+    /** Retained for callers that need a synchronous verification; login flow should use getPasswordData + async PBKDF2. */
     public synchronized boolean checkPassword(String username, String password) {
-        String salt = data.getString(key(username) + ".salt");
-        String hash = data.getString(key(username) + ".senha");
-        if (salt == null || hash == null) return false;
-        int iteracoes = data.getInt(key(username) + ".iteracoes", PasswordUtils.LEGACY_ITERATIONS);
-        return PasswordUtils.verify(password, salt, hash, iteracoes);
+        PasswordData passwordData = getPasswordData(username);
+        return passwordData != null && PasswordUtils.verify(password, passwordData.salt(), passwordData.hash(), passwordData.iterations());
     }
 
     public synchronized boolean needsPasswordUpgrade(String username) {
         return data.getInt(key(username) + ".iteracoes", PasswordUtils.LEGACY_ITERATIONS) < PasswordUtils.CURRENT_ITERATIONS;
     }
 
+    /** Persiste um hash de upgrade ja calculado; nao executa PBKDF2. */
+    public synchronized void upgradePasswordHash(String username, String salt, String hash, int iterations) {
+        if (username == null || salt == null || hash == null || iterations < 1 || !isRegistered(username)) return;
+        String base = key(username);
+        data.set(base + ".salt", salt);
+        data.set(base + ".senha", hash);
+        data.set(base + ".iteracoes", iterations);
+        scheduleAsyncSave();
+    }
+
+    /** Mantem compatibilidade para chamadas existentes; o login nao deve usa-lo na thread principal. */
     public synchronized void upgradePassword(String username, String password) {
         if (password == null || !isRegistered(username)) return;
         String salt = PasswordUtils.generateSalt();
-        String base = key(username);
-        data.set(base + ".salt", salt);
-        data.set(base + ".senha", PasswordUtils.hash(password, salt));
-        data.set(base + ".iteracoes", PasswordUtils.CURRENT_ITERATIONS);
-        scheduleAsyncSave();
+        String hash = PasswordUtils.hash(password, salt);
+        upgradePasswordHash(username, salt, hash, PasswordUtils.CURRENT_ITERATIONS);
     }
 }
