@@ -23,6 +23,26 @@ minimo-caracteres-senha: 7
 maximo-caracteres-senha: 16
 
 # ------------------------------------------------------------
+# PROTECAO DO REGISTRO
+# ------------------------------------------------------------
+
+# Limita quantas tentativas de /registro podem ser feitas pelo mesmo IP
+# e pelo mesmo nickname dentro da janela configurada.
+# 0 = sem limite de tentativas.
+registro:
+  max-tentativas-por-ip: 3
+  janela-minutos: 5
+
+  # Tempo minimo entre tentativas de registro do mesmo IP.
+  # Ajuda a evitar que o PBKDF2 seja usado para consumir CPU repetidamente.
+  # 0 = sem cooldown.
+  cooldown-segundos: 30
+
+  # Quantidade maxima de hashes PBKDF2 sendo processados ao mesmo tempo.
+  # Nao coloque um valor muito alto, pois o hash e intencionalmente pesado.
+  max-processamentos-simultaneos: 2
+
+# ------------------------------------------------------------
 # CONTAS AUTENTICADAS POR IP
 # ------------------------------------------------------------
 
