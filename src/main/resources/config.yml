@@ -14,11 +14,7 @@ max-tentativas-login: 3
 # desconecte e reconecte para "zerar" as tentativas.
 bloqueio-apos-exceder-tentativas-minutos: 5
 
-# Tamanho minimo exigido para a senha no /registro.
-tamanho-minimo-senha: 4
-
-# Tamanho maximo permitido para a senha no /registro.
-tamanho-maximo-senha: 16
+# As senhas devem ter entre 7 e 16 caracteres e conter pelo menos uma letra e um numero.
 
 # Quantas contas diferentes podem ser cadastradas pelo mesmo IP.
 # 1 = apenas uma conta por IP.
