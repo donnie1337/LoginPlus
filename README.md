@@ -12,26 +12,46 @@ login ou registro.
 AuthSystem/
 ├── pom.xml
 ├── README.md
+├── config.yml
+├── playerdata.yml
+├── AuthSystem.iml
 └── src/main/
     ├── java/com/authsystem/
-    │   ├── AuthSystem.java          (classe principal)
+    │   ├── AuthSystem.java                (classe principal e registro dos componentes)
     │   ├── commands/
-    │   │   ├── LoginCommand.java
-    │   │   └── RegisterCommand.java
+    │   │   ├── LoginCommand.java          (comando /login)
+    │   │   └── RegisterCommand.java       (comando /registro)
     │   ├── listeners/
-    │   │   ├── AuthListener.java        (fluxo principal: congela jogador, detecta premium)
-    │   │   └── AntiBypassListener.java  (bloqueia formas indiretas de burlar o congelamento)
+    │   │   ├── AuthListener.java          (fluxo de autenticação e proteção do jogador)
+    │   │   ├── AntiBypassListener.java    (bloqueia formas indiretas de burlar o login)
+    │   │   └── PremiumVerificationListener.java (handshake criptográfico de conta premium)
     │   ├── manager/
-    │   │   ├── PlayerDataManager.java  (salva senhas com hash em playerdata.yml)
-    │   │   ├── SessionManager.java     (estado em memória: logado, premium, etc.)
-    │   │   └── LoginProtection.java    (bloqueio por IP após senhas erradas em excesso)
+    │   │   ├── PlayerDataManager.java     (dados e senhas dos jogadores)
+    │   │   ├── SessionManager.java        (estado das sessões autenticadas)
+    │   │   └── LoginProtection.java       (bloqueio por excesso de tentativas)
     │   └── util/
-    │       ├── PasswordUtils.java   (hash PBKDF2 + salt)
-    │       └── PremiumChecker.java  (consulta a API da Mojang)
+    │       ├── PasswordUtils.java         (hash PBKDF2 + salt)
+    │       ├── PremiumAuthenticator.java  (guarda provas premium verificadas temporariamente)
+    │       ├── PremiumLoginVerifier.java  (desafio RSA/AES e verificação na sessão Mojang)
+    │       └── PremiumChecker.java        (consulta auxiliar de conta premium)
     └── resources/
         ├── plugin.yml
         └── config.yml
 ```
+
+### Fluxo da autenticação premium
+
+A autenticação de contas originais não depende apenas do nick. O fluxo atual usa um desafio criptográfico durante o login:
+
+1. `PremiumVerificationListener` intercepta o `LOGIN_START`.
+2. O servidor envia um `Encryption Request` com chave pública RSA e token de verificação.
+3. O cliente responde com o token e uma chave AES compartilhada, ambos protegidos por RSA.
+4. O plugin valida o token e ativa AES/CFB8 na conexão.
+5. `PremiumLoginVerifier` calcula o `serverId/hash` usando a chave AES e a chave pública do servidor.
+6. O plugin consulta a `hasJoined` da Mojang para confirmar a sessão.
+7. Somente após a confirmação criptográfica a prova é registrada em `PremiumAuthenticator`.
+8. Quando o jogador realmente entra, `AuthListener` consome essa prova e libera o login automaticamente.
+9. Se a Mojang não confirmar a sessão, o fluxo continua como conta cracked e o jogador precisa usar `/login` ou `/registro`.
 
 ## ⚠️ Passo obrigatório antes de compilar: gerar o spigot-api local
 
@@ -85,24 +105,15 @@ já garante que 100% dos jogadores são donos legítimos da conta.
 
 ## Sobre a detecção de conta original — leia isso
 
-A checagem de "é premium ou não" (classe `PremiumChecker`) funciona
-consultando a API pública da Mojang para saber se aquele **nome de
-usuário** pertence a uma conta original. É a abordagem mais simples e
-comum em plugins desse tipo, mas tem uma limitação importante: como o
-servidor roda em `offline-mode`, essa checagem **não prova
-criptograficamente** que quem está conectando agora é o dono de fato
-daquela conta — ela só confirma que aquele nick *existe* como conta
-paga na Mojang. Em teoria, alguém poderia digitar o nick de outra
-pessoa e ser tratado como "original".
+A checagem de "é premium ou não" agora utiliza o handshake criptográfico
+implementado por `PremiumVerificationListener` e `PremiumLoginVerifier`.
+O plugin não confia apenas no nick: a confirmação depende da resposta de
+criptografia do cliente e da validação da sessão na Mojang.
 
-Se você quiser uma verificação realmente à prova de falsificação, a
-forma correta é reimplementar o handshake de autenticação da Mojang
-(reproduzindo o que o online-mode faz internamente), o que normalmente
-é feito com **ProtocolLib** interceptando os pacotes de criptografia do
-login — é exatamente assim que plugins prontos como o **FastLogin**
-funcionam. Isso é bem mais complexo e foge do escopo de um plugin
-simples; se quiser, posso te ajudar a implementar essa versão avançada
-depois.
+Isso impede que outra pessoa simplesmente digite o nick de uma conta
+original e seja tratada como dona daquela conta. A prova premium também
+é vinculada ao endereço IP e mantida por pouco tempo, sendo consumida
+quando o jogador efetivamente entra no servidor.
 
 ## Sistema anti-bypass
 
