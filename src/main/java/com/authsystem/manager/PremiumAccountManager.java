@@ -52,11 +52,24 @@ public final class PremiumAccountManager {
         return ips.contains(ip) || ips.size() < limiteIps;
     }
 
+    /** Verifica e registra o IP na mesma operacao, evitando corrida entre dois logins simultaneos. */
+    public synchronized boolean tryAddIp(UUID uuid, String ip, int limiteIps) {
+        if (uuid == null || ip == null || ip.isBlank()) return false;
+        List<String> ips = getIps(uuid);
+        if (ips.contains(ip)) return true;
+        if (limiteIps > 0 && ips.size() >= limiteIps) return false;
+        String base = key(uuid);
+        ips.add(ip);
+        data.set(base + ".ips", ips);
+        scheduleAsyncSave();
+        return true;
+    }
+
     public synchronized void addIp(UUID uuid, String ip) {
         if (uuid == null || ip == null || ip.isBlank()) return;
-        String base = key(uuid);
         List<String> ips = getIps(uuid);
         if (ips.contains(ip)) return;
+        String base = key(uuid);
         ips.add(ip);
         data.set(base + ".ips", ips);
         scheduleAsyncSave();
