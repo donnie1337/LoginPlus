@@ -58,6 +58,18 @@ public class SessionManager {
         return contas == null ? 0 : contas.size();
     }
 
+    /** Retorna true quando ja existe outra conta autenticada usando o mesmo IP. */
+    public boolean hasOtherAuthenticatedFromIp(String ip, UUID uuid) {
+        if (ip == null || ip.isBlank()) return false;
+        Set<UUID> contas = contasAutenticadasPorIp.get(ip);
+        if (contas == null || contas.isEmpty()) return false;
+        if (uuid == null) return !contas.isEmpty();
+        for (UUID conta : contas) {
+            if (!conta.equals(uuid)) return true;
+        }
+        return false;
+    }
+
     public void clear(Player player) {
         UUID uuid = player.getUniqueId();
         authenticated.remove(uuid);
