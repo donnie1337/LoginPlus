@@ -1,6 +1,7 @@
 package com.authsystem.commands;
 
 import com.authsystem.AuthSystem;
+import com.authsystem.util.PasswordUtils;
 import org.bukkit.ChatColor;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
@@ -8,9 +9,6 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
 public class RegisterCommand implements CommandExecutor {
-
-    private static final int MIN_PASSWORD_LENGTH = 7;
-    private static final int MAX_PASSWORD_LENGTH = 16;
 
     private final AuthSystem plugin;
 
@@ -47,19 +45,10 @@ public class RegisterCommand implements CommandExecutor {
 
         String senha = args[0];
         String confirmar = args[1];
+        String erroSenha = PasswordUtils.validatePassword(senha);
 
-        if (senha.length() < MIN_PASSWORD_LENGTH) {
-            player.sendMessage(ChatColor.RED + "Sua senha precisa ter pelo menos " + MIN_PASSWORD_LENGTH + " caracteres.");
-            return true;
-        }
-
-        if (senha.length() > MAX_PASSWORD_LENGTH) {
-            player.sendMessage(ChatColor.RED + "Sua senha pode ter no máximo " + MAX_PASSWORD_LENGTH + " caracteres.");
-            return true;
-        }
-
-        if (!senha.matches(".*[A-Za-z].*") || !senha.matches(".*[0-9].*")) {
-            player.sendMessage(ChatColor.RED + "Sua senha precisa conter pelo menos uma letra e um número.");
+        if (erroSenha != null) {
+            player.sendMessage(ChatColor.RED + erroSenha);
             return true;
         }
 
