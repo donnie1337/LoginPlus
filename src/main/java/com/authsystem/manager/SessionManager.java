@@ -4,23 +4,21 @@ import org.bukkit.Location;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitTask;
 
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Guarda em memoria (nao precisa persistir em disco) quem esta logado,
- * quem foi identificado como conta original, localizacao de "congelamento"
- * e tarefas de timeout, enquanto o jogador esta online.
+ * Guarda em memoria quem esta logado, quem foi identificado como conta original,
+ * localizacao de congelamento e tarefas de timeout enquanto o jogador esta online.
  */
 public class SessionManager {
 
-    private final Set<UUID> authenticated = new HashSet<>();
-    private final Set<UUID> premium = new HashSet<>();
-    private final Map<UUID, Location> frozenLocation = new HashMap<>();
-    private final Map<UUID, BukkitTask> timeoutTasks = new HashMap<>();
+    private final Set<UUID> authenticated = ConcurrentHashMap.newKeySet();
+    private final Set<UUID> premium = ConcurrentHashMap.newKeySet();
+    private final Map<UUID, Location> frozenLocation = new ConcurrentHashMap<>();
+    private final Map<UUID, BukkitTask> timeoutTasks = new ConcurrentHashMap<>();
 
     public boolean isAuthenticated(Player player) {
         return authenticated.contains(player.getUniqueId());
