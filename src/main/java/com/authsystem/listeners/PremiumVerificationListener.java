@@ -73,12 +73,18 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
         event.setCancelled(true);
         byte[] verifyToken = verifier.start(key, username);
         if (verifyToken == null) {
-            // Ja existe um desafio ativo para esta conexao. Nao sobrescreva token/estado.
             LOGGER.fine("Handshake premium duplicado ignorado para " + username + " (" + key + ").");
             return;
         }
 
-        connections.put(key, new PendingConnection(username, version, playerUuid, ip));
+        PendingConnection pending = new PendingConnection(username, version, playerUuid, ip);
+        // Nunca sobrescreva o estado de outra tentativa para a mesma conexao.
+        if (connections.putIfAbsent(key, pending) != null) {
+            verifier.remove(key);
+            LOGGER.warning("Reserva de conexao premium duplicada detectada para " + username + " (" + key + ").");
+            return;
+        }
+
         user.sendPacket(new WrapperLoginServerEncryptionRequest("", verifier.getPublicKey(), verifyToken, true));
         BukkitTask fallback = plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
             PendingConnection current = connections.remove(key);
