@@ -1,133 +1,161 @@
-# AuthSystem — Plugin de Login/Registro para Spigot 26.2
+# AuthSystem — Plugin de Autenticação para Spigot 26.2
 
-Plugin de autenticação com `/login` e `/registro`. Contas **originais
-(premium)** são detectadas automaticamente e não precisam logar nem se
-registrar; contas **piratas (cracked)** ficam "congeladas" (sem mover,
-falar no chat, quebrar/colocar blocos, tomar dano, etc.) até efetuarem
-login ou registro.
+O **AuthSystem** é um plugin de autenticação para servidores Minecraft que permite a utilização simultânea de contas **Premium** e **Cracked**. Contas Premium são verificadas automaticamente por meio de um processo criptográfico e não precisam utilizar `/login` ou `/registro`. Contas Cracked utilizam o sistema tradicional de registro e login.
 
 ## Estrutura do projeto
 
-```
+```text
 AuthSystem/
 ├── pom.xml
 ├── README.md
-├── config.yml
-├── playerdata.yml
 ├── AuthSystem.iml
 └── src/main/
     ├── java/com/authsystem/
-    │   ├── AuthSystem.java                (classe principal e registro dos componentes)
+    │   ├── AuthSystem.java
     │   ├── commands/
-    │   │   ├── LoginCommand.java          (comando /login)
-    │   │   └── RegisterCommand.java       (comando /registro)
+    │   │   ├── LoginCommand.java
+    │   │   └── RegisterCommand.java
     │   ├── listeners/
-    │   │   ├── AuthListener.java          (fluxo de autenticação e proteção do jogador)
-    │   │   ├── AntiBypassListener.java    (bloqueia formas indiretas de burlar o login)
-    │   │   └── PremiumVerificationListener.java (handshake criptográfico de conta premium)
+    │   │   ├── AuthListener.java
+    │   │   ├── AntiBypassListener.java
+    │   │   └── PremiumVerificationListener.java
     │   ├── manager/
-    │   │   ├── PlayerDataManager.java     (dados, senhas e vínculo das contas com IPs)
-    │   │   ├── SessionManager.java        (estado das sessões autenticadas)
-    │   │   └── LoginProtection.java       (bloqueio por excesso de tentativas)
+    │   │   ├── PlayerDataManager.java
+    │   │   ├── SessionManager.java
+    │   │   └── LoginProtection.java
     │   └── util/
-    │       ├── PasswordUtils.java         (hash PBKDF2 + salt)
-    │       ├── PremiumAuthenticator.java  (guarda provas premium verificadas temporariamente)
-    │       ├── PremiumLoginVerifier.java  (desafio RSA/AES e verificação na sessão Mojang)
-    │       └── PremiumChecker.java        (consulta auxiliar de conta premium)
+    │       ├── PasswordUtils.java
+    │       ├── PremiumAuthenticator.java
+    │       ├── PremiumLoginVerifier.java
+    │       └── PremiumChecker.java
     └── resources/
         ├── plugin.yml
-        └── config.yml
+        ├── config.yml
+        └── mensagens/
+            └── titulos.yml
 ```
 
 ## Funcionalidades
 
-### Autenticação premium
+- Autenticação automática de contas Premium.
+- Verificação criptográfica durante o handshake do Minecraft.
+- Validação da sessão através da Mojang.
+- Registro e login para contas Cracked.
+- Senhas protegidas com PBKDF2WithHmacSHA256 e salt aleatório.
+- Limite configurável de contas por endereço IP.
+- Proteção contra bypass do limite de contas e do processo de autenticação.
+- Limite de tentativas de login por IP.
+- Bloqueio temporário de IP após excesso de tentativas.
+- Tempo limite configurável para login e registro.
+- Congelamento de jogadores enquanto não estão autenticados.
+- Bloqueio de comandos, chat e interações não autorizadas durante a autenticação.
+- Títulos configuráveis para registro e login.
+- Preservação das configurações existentes durante atualizações.
+- Inclusão automática de novas configurações ausentes.
 
-- Detecta contas originais automaticamente.
-- Não depende apenas do nickname para identificar uma conta premium.
-- Usa desafio criptográfico durante o handshake de login.
-- Valida o token de verificação antes de ativar a criptografia.
-- Usa RSA + AES/CFB8 para o desafio de autenticação.
-- Consulta a sessão da Mojang através do `hasJoined`.
-- A prova premium é temporária, vinculada ao IP e consumida quando o jogador entra.
-- Se a sessão não for confirmada pela Mojang, o jogador continua como cracked e precisa usar `/login` ou `/registro`.
+## Autenticação Premium
 
-### Contas cracked
+O AuthSystem não considera apenas o nickname para identificar uma conta Premium. A autenticação utiliza um desafio criptográfico durante o handshake e posteriormente confirma a sessão junto à Mojang.
 
-- `/registro` para criar uma conta.
-- `/login` para acessar uma conta existente.
-- Senhas armazenadas com hash PBKDF2 + salt.
-- Senhas exigem tamanho mínimo e devem conter letras e números.
-- Jogadores não autenticados ficam congelados até concluir o login ou registro.
-- Existe um tempo máximo para concluir a autenticação.
+O fluxo funciona da seguinte maneira:
 
-### Limite de contas por IP
+1. `PremiumVerificationListener` intercepta o início do login.
+2. O servidor envia um desafio de criptografia com chave pública RSA e token de verificação.
+3. O cliente responde com os dados protegidos por RSA.
+4. O plugin valida o token e estabelece a criptografia AES/CFB8.
+5. `PremiumLoginVerifier` calcula o `serverId/hash` utilizado na autenticação.
+6. A sessão é consultada através do serviço `hasJoined` da Mojang.
+7. Somente após a confirmação a prova Premium é registrada temporariamente.
+8. Quando o jogador entra no servidor, `AuthListener` consome a prova e libera o acesso automaticamente.
+9. Caso a sessão não seja confirmada, o jogador segue o fluxo de conta Cracked.
 
-O plugin permite limitar quantas contas podem ser cadastradas usando o mesmo endereço IP.
+## Contas Cracked
 
-Por padrão, o limite é de **1 conta por IP**. Esse valor pode ser alterado no `config.yml`.
+Contas que não são confirmadas como Premium utilizam o sistema tradicional de autenticação.
 
-- `1` = apenas uma conta por IP.
-- `2` = até duas contas por IP.
-- `3` = até três contas por IP.
-- `0` = sem limite.
+Para criar uma conta, utiliza-se:
 
-O IP utilizado no cadastro é salvo junto aos dados da conta em `playerdata.yml`.
+```text
+/registro <senha> <confirmar-senha>
+```
 
-### Sistema anti-bypass
+Depois do registro, o acesso pode ser realizado com:
 
-Três camadas trabalham juntas para impedir que alguém contorne o login:
+```text
+/login <senha>
+```
 
-1. **Congelamento (`AuthListener`)** — enquanto não autenticado, o jogador
-   não anda, não fala no chat, não usa comandos além de `/login` e
-   `/registro`, não quebra/coloca blocos, não toma dano nem perde fome.
-2. **Proteções indiretas (`AntiBypassListener`)** — cobre formas menos
-   óbvias de escapar do congelamento: teleporte, abrir baús/inventários,
-   montar em cavalo/barco, interagir com entidades, atirar flechas/itens,
-   comer, mobs mirando no jogador, e o próprio jogador causando dano em algo.
-3. **Bloqueio por senha errada (`LoginProtection`)** — limita as tentativas
-   de login por endereço IP. Depois de exceder o limite configurado, o IP
-   fica temporariamente bloqueado e novas tentativas são barradas antes do
-   jogador entrar no servidor.
+Os aliases disponíveis para registro são:
 
-O histórico de tentativas antigas também é removido da memória depois de um
-período de inatividade, evitando manter registros desnecessários indefinidamente.
+```text
+/register <senha> <confirmar-senha>
+/cadastrar <senha> <confirmar-senha>
+```
 
-## Fluxo da autenticação premium
+Após um registro bem-sucedido, o jogador é autenticado automaticamente.
 
-A autenticação de contas originais não depende apenas do nick. O fluxo atual usa um desafio criptográfico durante o login:
+## Limite de contas por IP
 
-1. `PremiumVerificationListener` intercepta o `LOGIN_START`.
-2. O servidor envia um `Encryption Request` com chave pública RSA e token de verificação.
-3. O cliente responde com o token e uma chave AES compartilhada, ambos protegidos por RSA.
-4. O plugin valida o token e ativa AES/CFB8 na conexão.
-5. `PremiumLoginVerifier` calcula o `serverId/hash` usando a chave AES e a chave pública do servidor.
-6. O plugin consulta a `hasJoined` da Mojang para confirmar a sessão.
-7. Somente após a confirmação criptográfica a prova é registrada em `PremiumAuthenticator`.
-8. Quando o jogador realmente entra, `AuthListener` consome essa prova e libera o login automaticamente.
-9. Se a Mojang não confirmar a sessão, o fluxo continua como conta cracked e o jogador precisa usar `/login` ou `/registro`.
+O plugin permite determinar quantas contas diferentes podem ser cadastradas utilizando o mesmo endereço IP.
 
-## Comandos
+A configuração padrão é:
 
-| Comando | Descrição |
+```yaml
+max-contas-por-ip: 1
+```
+
+Os valores disponíveis são:
+
+| Valor | Comportamento |
 |---|---|
-| `/login <senha>` | Faz login numa conta já registrada |
-| `/registro <senha> <confirmar-senha>` | Cria uma nova conta |
-| `/register <senha> <confirmar-senha>` | Alias de `/registro` |
-| `/cadastrar <senha> <confirmar-senha>` | Alias de `/registro` |
+| `1` | Permite apenas uma conta por IP |
+| `2` | Permite até duas contas por IP |
+| `3` | Permite até três contas por IP |
+| `0` | Remove o limite |
 
-Enquanto o jogador não estiver autenticado, apenas os comandos de autenticação permitidos ficam disponíveis.
+O endereço IP utilizado no cadastro é armazenado junto aos dados da conta em `playerdata.yml`. Dessa forma, o limite permanece válido mesmo após reinicializações do servidor.
 
-## Configurações (`config.yml`)
+## Sistema anti-bypass
+
+O processo de autenticação possui diferentes camadas de proteção.
+
+### Congelamento
+
+Enquanto não estiver autenticado, o jogador não pode:
+
+- Andar livremente.
+- Utilizar comandos não autorizados.
+- Falar no chat.
+- Quebrar ou colocar blocos.
+- Causar ou receber determinados tipos de dano.
+- Realizar interações que possam contornar a autenticação.
+
+### Proteções indiretas
+
+`AntiBypassListener` também trata formas menos óbvias de escapar do processo de autenticação, incluindo teleporte, inventários, veículos, entidades, projéteis, alimentação e outras interações.
+
+### Proteção contra força bruta
+
+`LoginProtection` controla as tentativas de login por endereço IP. Depois de exceder o limite configurado, o IP fica temporariamente bloqueado.
+
+## Configurações
+
+O arquivo principal é gerado em:
+
+```text
+plugins/AuthSystem/config.yml
+```
+
+Configuração padrão:
 
 ```yaml
 # Tempo (em segundos) que o jogador tem para digitar /login ou /registro
 tempo-limite-login-segundos: 60
 
-# Número de erros de senha permitidos antes de bloquear o IP
+# Número de erros de senha permitidos antes do bloqueio
 max-tentativas-login: 3
 
-# Tempo (em minutos) que o IP fica bloqueado após exceder o limite de tentativas
+# Tempo (em minutos) que o IP fica bloqueado após exceder o limite
 bloqueio-apos-exceder-tentativas-minutos: 5
 
 # Tamanho mínimo exigido para a senha no /registro
@@ -135,73 +163,96 @@ tamanho-minimo-senha: 4
 
 # Quantas contas diferentes podem ser cadastradas pelo mesmo IP.
 # 1 = apenas uma conta por IP.
+# 2 = até duas contas por IP.
 # 0 = sem limite.
 max-contas-por-ip: 1
 ```
 
+O AuthSystem não substitui as configurações existentes ao ser atualizado. Quando uma nova configuração ainda não estiver presente no `config.yml`, ela será adicionada automaticamente sem remover os valores já configurados pelo servidor.
+
 ## Armazenamento
 
-Os dados das contas são armazenados em `playerdata.yml` dentro da pasta do plugin.
+Os dados das contas são armazenados em:
 
-Cada conta registrada possui:
+```text
+plugins/AuthSystem/playerdata.yml
+```
+
+Cada conta registrada possui informações como:
 
 - Nome da conta.
 - Hash da senha.
 - Salt da senha.
-- Endereço IP usado no cadastro.
+- Endereço IP utilizado no cadastro.
 - Data do registro.
 
-O armazenamento atual é baseado em YAML, sem dependências externas. Para servidores muito grandes, uma futura migração para SQLite ou MySQL pode ser considerada.
+As senhas não são armazenadas em texto puro.
 
-## ⚠️ Passo obrigatório antes de compilar: gerar o spigot-api local
+## Títulos
 
-A Mojang não permite que o Spigot redistribua o jar da API já pronto.
-Por isso, antes de rodar `mvn package`, você precisa gerar esse artefato
-localmente **uma vez**, usando o BuildTools oficial:
+Os títulos exibidos durante o processo de autenticação podem ser configurados em:
 
-```bash
-# 1. Baixe o BuildTools.jar no site oficial do Spigot.
-# 2. Rode, pedindo exatamente a versão 26.2:
-java -jar BuildTools.jar --rev 26.2
-
-# Isso instala automaticamente o spigot-api-26.2-R0.1-SNAPSHOT.jar
-# no seu repositório Maven local (~/.m2/repository).
+```text
+plugins/AuthSystem/mensagens/titulos.yml
 ```
 
-Isso baixa e compila os arquivos da Mojang/Spigot — então você precisa
-de internet liberada para os domínios do Mojang/Spigot/Maven nesse passo.
+Exemplo:
 
-Java necessário: o Minecraft/Spigot 26.x exige **Java 25** para rodar o
-servidor. Para compilar o BuildTools e o plugin, use também uma JDK 21+
-(recomendo instalar a 25 para ficar tudo alinhado).
+```yaml
+bem-vindo: "&aBem-vindo"
+registro: "&eFaça o registro"
+login: "&eFaça o login"
+```
 
-## Compilando o plugin
+## Requisitos
 
-Depois do passo acima, dentro da pasta `AuthSystem/`:
+- Java 21 ou superior compatível com o ambiente de compilação.
+- Spigot/Paper compatível com a API utilizada pelo projeto.
+- PacketEvents 2.13.0 ou superior.
+
+O PacketEvents deve estar instalado no servidor em `plugins/`.
+
+## Compilação
+
+O projeto utiliza Maven.
+
+Para gerar o JAR:
 
 ```bash
 mvn clean package
 ```
 
-O arquivo gerado fica em `target/AuthSystem.jar`. Copie esse `.jar` para
-a pasta `plugins/` do seu servidor Spigot e reinicie.
+O arquivo gerado ficará em:
+
+```text
+target/AuthSystem.jar
+```
+
+O projeto utiliza Java 21 como versão de compilação.
 
 ## Configuração do servidor
 
-No `server.properties`, deixe:
+No `server.properties`, a configuração deve ser:
 
-```
+```properties
 online-mode=false
 ```
 
-Isso permite que contas cracked e contas originais entrem no mesmo servidor.
+Essa configuração permite que contas Premium e Cracked utilizem o mesmo servidor, enquanto o AuthSystem realiza a verificação adicional das contas Premium.
 
-## Sobre a detecção de conta original
+## Segurança
 
-A checagem de conta original utiliza o handshake criptográfico implementado por
-`PremiumVerificationListener` e `PremiumLoginVerifier`. O plugin não confia
-apenas no nick: a confirmação depende da resposta de criptografia do cliente
-e da validação da sessão na Mojang.
+O AuthSystem foi desenvolvido com foco na proteção do processo de autenticação.
 
-Isso impede que outra pessoa simplesmente digite o nick de uma conta original
-e seja tratada como dona daquela conta.
+Entre as principais medidas implementadas estão:
+
+- Verificação criptográfica para contas Premium.
+- Validação da sessão junto à Mojang.
+- Hash de senha utilizando PBKDF2WithHmacSHA256.
+- Salt aleatório por senha.
+- Controle de tentativas de login por IP.
+- Bloqueio temporário após excesso de tentativas.
+- Limitação de contas por IP.
+- Proteção contra bypass através de reconexões e interações indiretas.
+- Bloqueio de ações enquanto o jogador não estiver autenticado.
+- Expiração de informações temporárias utilizadas na autenticação Premium.
