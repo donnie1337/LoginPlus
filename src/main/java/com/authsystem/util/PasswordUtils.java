@@ -42,10 +42,15 @@ public final class PasswordUtils {
         return hash(password, saltBase64, DEFAULT_ITERATIONS);
     }
 
+    /**
+     * Calcula um hash com o numero de iteracoes informado.
+     * O limite de configuracao (100..10000) e aplicado por AuthSystem;
+     * este metodo tambem precisa aceitar hashes antigos com mais iteracoes para verificacao.
+     */
     public static String hash(String password, String saltBase64, int iterations) {
         try {
-            if (iterations < MIN_ITERATIONS || iterations > MAX_ITERATIONS) {
-                throw new IllegalArgumentException("Numero de iteracoes PBKDF2 fora do intervalo permitido: " + iterations);
+            if (iterations < 1) {
+                throw new IllegalArgumentException("Numero de iteracoes PBKDF2 invalido: " + iterations);
             }
             byte[] salt = Base64.getDecoder().decode(saltBase64);
             PBEKeySpec spec = new PBEKeySpec(password.toCharArray(), salt, iterations, KEY_LENGTH_BITS);
