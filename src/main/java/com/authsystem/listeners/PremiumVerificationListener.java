@@ -28,7 +28,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 
-/** Real premium challenge for an offline-mode server. */
+/** Desafio real para verificar contas premium em um servidor offline-mode. */
 public final class PremiumVerificationListener extends PacketListenerAbstract {
     private static final Logger LOGGER = Logger.getLogger("AuthSystem");
     private static final long FALLBACK_MS = 10000L;
@@ -75,8 +75,8 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
         user.sendPacket(new WrapperLoginServerEncryptionRequest(
                 "", verifier.getPublicKey(), verifyToken, true));
 
-        // Cracked clients may not answer. A single atomic remove decides who owns
-        // the continuation, avoiding a race with the asynchronous Mojang response.
+        // Clientes cracked podem nao responder. Uma unica remocao atomica decide quem continua o login,
+        // evitando uma corrida com a resposta assincrona da verificacao na Mojang.
         plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
             PendingConnection current = connections.remove(key);
             if (current != null) {
@@ -105,6 +105,7 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
             return;
         }
 
+        // Valida o desafio antes de ativar o AES, impedindo que uma resposta RSA invalida altere a conexao.
         if (!verifier.validateToken(key, encryptedToken.get())) {
             LOGGER.warning("Invalid premium verify token for " + pending.username());
             failAndResume(key, pending, user);
@@ -124,8 +125,7 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
             return;
         }
 
-        // Mojang verification is asynchronous. The continuation that touches the
-        // PacketEvents connection is explicitly returned to the Bukkit main thread.
+        // A verificacao na Mojang e assincrona. A continuacao que toca na conexao do PacketEvents volta explicitamente para a thread principal do Bukkit.
         verifier.verify(key, sharedSecret).thenAccept(result ->
                 plugin.getServer().getScheduler().runTask(plugin, () -> {
                     if (!connections.remove(key, pending)) {
