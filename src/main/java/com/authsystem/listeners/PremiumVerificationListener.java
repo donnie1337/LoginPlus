@@ -55,22 +55,22 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
         WrapperLoginClientLoginStart packet = new WrapperLoginClientLoginStart(event);
         String username = packet.getUsername();
         if (username == null || !username.matches("[A-Za-z0-9_]{3,16}")) return;
+
         User user = event.getUser();
         ClientVersion version = user.getClientVersion();
-        String key = connectionKey(user);
         UUID playerUuid = packet.getPlayerUUID().orElse(null);
         String ip = user.getAddress().getAddress().getHostAddress();
 
-        boolean contaLocal = plugin.getPlayerDataManager().isRegistered(username);
-        event.setCancelled(true);
-
-        // Contas locais sempre tem prioridade: nao fazemos verificacao premium para o mesmo nickname.
-        if (contaLocal) {
+        // O banco local sempre vem primeiro. Se o nickname ja possui conta, nao fazemos handshake premium.
+        if (plugin.getPlayerDataManager().isRegistered(username)) {
             authenticator.clear(username, ip);
+            event.setCancelled(true);
             resume(user, version, username, playerUuid);
             return;
         }
 
+        String key = connectionKey(user);
+        event.setCancelled(true);
         byte[] verifyToken = verifier.start(key, username);
         connections.put(key, new PendingConnection(username, version, playerUuid, ip));
         user.sendPacket(new WrapperLoginServerEncryptionRequest("", verifier.getPublicKey(), verifyToken, true));
