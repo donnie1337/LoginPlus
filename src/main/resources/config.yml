@@ -10,8 +10,7 @@ tempo-limite-login-segundos: 60
 max-tentativas-login: 3
 
 # Quanto tempo (em minutos) o IP fica impedido de tentar logar de novo
-# depois de exceder o limite acima. Isso impede que a pessoa apenas
-# desconecte e reconecte para "zerar" as tentativas.
+# depois de exceder o limite acima.
 bloqueio-apos-exceder-tentativas-minutos: 5
 
 # As senhas devem ter entre 7 e 16 caracteres e conter pelo menos uma letra e um numero.
@@ -21,3 +20,9 @@ bloqueio-apos-exceder-tentativas-minutos: 5
 # 2 = ate duas contas por IP.
 # 0 = sem limite.
 max-contas-por-ip: 1
+
+# Quantos IPs diferentes podem ser usados pela mesma conta.
+# 1 = a conta fica vinculada ao primeiro IP utilizado.
+# 2 = a conta pode ser usada em ate dois IPs diferentes.
+# 0 = sem limite.
+max-ips-por-conta: 1
