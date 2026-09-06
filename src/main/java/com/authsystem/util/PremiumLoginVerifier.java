@@ -96,12 +96,16 @@ public final class PremiumLoginVerifier {
             }
         });
 
-        // Libera o slot somente quando a requisicao HTTP real terminar, mesmo que o future publico ja tenha expirado.
+        // O slot permanece ocupado ate a requisicao HTTP real terminar, mesmo que o fluxo de autenticacao
+        // ja tenha atingido o timeout e seguido como cracked.
         if (verificacoesAtivas != null) request.whenComplete((result, error) -> verificacoesAtivas.release());
 
-        // O timeout e do fluxo de autenticacao, independentemente do estado da rede.
-        // Se a consulta continuar internamente, seu resultado sera ignorado pelo future publico.
-        return request.orTimeout(MOJANG_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        CompletableFuture<Optional<UUID>> timeout = new CompletableFuture<>();
+        CompletableFuture.delayedExecutor(MOJANG_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                .execute(() -> timeout.complete(Optional.empty()));
+
+        // Timeout do fluxo de autenticacao sem cancelar/alterar o future da requisicao real.
+        return request.applyToEither(timeout, value -> value)
                 .exceptionally(error -> {
                     LOGGER.warning("Timeout/falha na verificacao Mojang de " + p.username() + ". A conexao continuara como cracked.");
                     return Optional.empty();
