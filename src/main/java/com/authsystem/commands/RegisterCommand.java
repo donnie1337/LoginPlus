@@ -61,7 +61,18 @@ public class RegisterCommand implements CommandExecutor {
             return true;
         }
 
-        plugin.getPlayerDataManager().register(player.getName(), senha);
+        String ip = player.getAddress() != null && player.getAddress().getAddress() != null
+                ? player.getAddress().getAddress().getHostAddress()
+                : null;
+        int limiteContas = plugin.getConfig().getInt("max-contas-por-ip", 1);
+
+        if (limiteContas > 0 && ip != null
+                && plugin.getPlayerDataManager().countAccountsForIp(ip) >= limiteContas) {
+            player.sendMessage(ChatColor.RED + "Este IP já atingiu o limite de " + limiteContas + " conta(s).");
+            return true;
+        }
+
+        plugin.getPlayerDataManager().register(player.getName(), senha, ip);
         plugin.getSessionManager().setAuthenticated(player, true);
         plugin.getSessionManager().cancelTimeout(player);
         player.sendMessage(ChatColor.GREEN + "Registro concluído com sucesso! Você já está logado.");
