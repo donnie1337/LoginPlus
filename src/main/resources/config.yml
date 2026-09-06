@@ -10,8 +10,8 @@ tempo-limite-login-segundos: 60
 max-tentativas-login: 3
 
 # Quanto tempo (em minutos) o IP fica impedido de tentar logar de novo
-# depois de exceder o limite acima. Isso e o que impede a pessoa de so
-# desconectar e reconectar para "resetar" as tentativas (bypass).
+# depois de exceder o limite acima. Isso impede que a pessoa apenas
+# desconecte e reconecte para "zerar" as tentativas.
 bloqueio-apos-exceder-tentativas-minutos: 5
 
 # Tamanho minimo exigido para a senha no /registro.
@@ -19,5 +19,6 @@ tamanho-minimo-senha: 4
 
 # Quantas contas diferentes podem ser cadastradas pelo mesmo IP.
 # 1 = apenas uma conta por IP.
+# 2 = ate duas contas por IP.
 # 0 = sem limite.
 max-contas-por-ip: 1
