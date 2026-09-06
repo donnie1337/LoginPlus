@@ -53,60 +53,9 @@ A autenticação de contas originais não depende apenas do nick. O fluxo atual 
 8. Quando o jogador realmente entra, `AuthListener` consome essa prova e libera o login automaticamente.
 9. Se a Mojang não confirmar a sessão, o fluxo continua como conta cracked e o jogador precisa usar `/login` ou `/registro`.
 
-## ⚠️ Passo obrigatório antes de compilar: gerar o spigot-api local
-
-A Mojang não permite que o Spigot redistribua o jar da API já pronto.
-Por isso, antes de rodar `mvn package`, você precisa gerar esse artefato
-localmente **uma vez**, usando o BuildTools oficial:
-
-```bash
-# 1. Baixe o BuildTools.jar (link sempre atualizado em spigotmc.org):
-#    https://www.spigotmc.org/wiki/buildtools/
-
-# 2. Rode, pedindo exatamente a versão 26.2:
-java -jar BuildTools.jar --rev 26.2
-
-# Isso instala automaticamente o spigot-api-26.2-R0.1-SNAPSHOT.jar
-# no seu repositório Maven local (~/.m2/repository).
-```
-
-Isso baixa e compila os arquivos da Mojang/Spigot — então você precisa
-de internet liberada para os domínios do Mojang/Spigot/Maven nesse passo
-(não dá pra fazer isso num ambiente sem acesso à internet).
-
-Java necessário: o Minecraft/Spigot 26.x exige **Java 25** para RODAR o
-servidor. Para compilar o BuildTools e o plugin, use também uma JDK 21+
-(recomendo instalar a 25 para ficar tudo alinhado).
-
-## Compilando o plugin
-
-Depois do passo acima, dentro da pasta `AuthSystem/`:
-
-```bash
-mvn clean package
-```
-
-O arquivo gerado fica em `target/AuthSystem.jar`. Copie esse `.jar` para
-a pasta `plugins/` do seu servidor Spigot e reinicie.
-
-## Configuração do servidor
-
-No `server.properties`, deixe:
-
-```
-online-mode=false
-```
-
-Isso é o que permite tanto contas piratas (que passam por /login e
-/registro) quanto contas originais entrarem no mesmo servidor. Se
-`online-mode=true`, só quem tem conta original consegue nem conectar —
-nesse caso o plugin não teria função alguma, pois o próprio Minecraft
-já garante que 100% dos jogadores são donos legítimos da conta.
-
 ## Sobre a detecção de conta original — leia isso
 
-A checagem de "é premium ou não" agora utiliza o handshake criptográfico
-implementado por `PremiumVerificationListener` e `PremiumLoginVerifier`.
+A checagem de "é premium ou não" agora utiliza o handshake criptográfico implementado por `PremiumVerificationListener` e `PremiumLoginVerifier`.
 O plugin não confia apenas no nick: a confirmação depende da resposta de
 criptografia do cliente e da validação da sessão na Mojang.
 
