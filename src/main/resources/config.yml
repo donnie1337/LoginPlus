@@ -19,17 +19,14 @@ minimo-caracteres-senha: 7
 # Quantidade maxima de caracteres permitida na senha.
 maximo-caracteres-senha: 16
 
-# As senhas podem conter apenas letras e numeros, sem espacos ou caracteres especiais.
-# Tambem precisam ter pelo menos uma letra e um numero.
-
-# Quantas contas diferentes podem ser cadastradas pelo mesmo IP.
-# 1 = apenas uma conta por IP.
-# 2 = ate duas contas por IP.
+# Quantas contas diferentes podem ficar autenticadas ao mesmo tempo pelo mesmo IP.
+# 1 = apenas uma conta jogando por IP.
+# 2 = ate duas contas jogando pelo mesmo IP.
 # 0 = sem limite.
 max-contas-por-ip: 1
 
-# Quantos IPs diferentes podem ser usados pela mesma conta.
+# Quantos IPs diferentes podem usar a mesma conta ao longo do tempo.
 # 1 = a conta fica vinculada ao primeiro IP utilizado.
-# 2 = a conta pode ser usada em ate dois IPs diferentes.
+# 2 = a conta pode usar ate dois IPs diferentes.
 # 0 = sem limite.
 max-ips-por-conta: 1
