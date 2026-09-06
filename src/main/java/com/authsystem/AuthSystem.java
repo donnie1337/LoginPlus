@@ -17,6 +17,7 @@ import com.authsystem.util.PremiumLoginVerifier;
 import com.authsystem.util.PasswordUtils;
 import com.github.retrooper.packetevents.PacketEvents;
 import org.bukkit.Bukkit;
+import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitTask;
 
@@ -153,6 +154,10 @@ public class AuthSystem extends JavaPlugin {
         return Math.max(PasswordUtils.MIN_ITERATIONS,
                 Math.min(PasswordUtils.MAX_ITERATIONS,
                         getConfig().getInt("seguranca.pbkdf2-iteracoes", PasswordUtils.DEFAULT_ITERATIONS)));
+    }
+
+    public boolean isAuthenticated(Player player) {
+        return player != null && sessionManager != null && sessionManager.isAuthenticated(player);
     }
 
     public PlayerDataManager getPlayerDataManager() { return playerDataManager; }
