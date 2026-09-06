@@ -1,15 +1,13 @@
 package com.authsystem.manager;
 
+import java.util.Locale;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Controla tentativas erradas de login por ENDERECO DE IP (nao por sessao).
+ * Controla tentativas erradas de login por IP e por conta.
  *
- * Isso e essencial pro sistema anti-bypass: se contassemos as tentativas
- * apenas na sessao do jogador (como no SessionManager), bastaria a pessoa
- * se desconectar e reconectar para "zerar" o contador e tentar de novo
- * infinitamente. Guardando por IP e com um tempo de bloqueio que sobrevive
- * a desconexao, isso deixa de ser possivel.
+ * O limite por IP impede ataques simples e o limite por conta impede que um
+ * atacante distribua as tentativas entre varios IPs para atacar a mesma conta.
  */
 public class LoginProtection {
 
@@ -22,61 +20,77 @@ public class LoginProtection {
     }
 
     private final ConcurrentHashMap<String, Registro> porIp = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Registro> porConta = new ConcurrentHashMap<>();
 
-    /** true se esse IP ainda esta no periodo de bloqueio. */
     public boolean estaBloqueado(String ip) {
-        Registro r = porIp.get(ip);
-        if (r == null) {
-            return false;
-        }
+        return estaBloqueadoNoMapa(porIp, ip);
+    }
+
+    public boolean estaBloqueadoConta(String username) {
+        return estaBloqueadoNoMapa(porConta, normalizarConta(username));
+    }
+
+    private boolean estaBloqueadoNoMapa(ConcurrentHashMap<String, Registro> mapa, String chave) {
+        if (chave == null || chave.isBlank()) return false;
+        Registro r = mapa.get(chave);
+        if (r == null) return false;
 
         long agora = System.currentTimeMillis();
         if (r.bloqueadoAte != 0) {
-            if (agora <= r.bloqueadoAte) {
-                return true;
-            }
-            porIp.remove(ip, r);
+            if (agora <= r.bloqueadoAte) return true;
+            mapa.remove(chave, r);
             return false;
         }
 
-        // Erros antigos sem bloqueio nao precisam permanecer em memoria.
-        if (agora - r.ultimaTentativa > HISTORICO_EXPIRA_MS) {
-            porIp.remove(ip, r);
-        }
+        if (agora - r.ultimaTentativa > HISTORICO_EXPIRA_MS) mapa.remove(chave, r);
         return false;
     }
 
     public long segundosRestantes(String ip) {
-        Registro r = porIp.get(ip);
-        if (r == null || r.bloqueadoAte == 0) {
-            return 0;
-        }
+        return segundosRestantesNoMapa(porIp, ip);
+    }
+
+    public long segundosRestantesConta(String username) {
+        return segundosRestantesNoMapa(porConta, normalizarConta(username));
+    }
+
+    private long segundosRestantesNoMapa(ConcurrentHashMap<String, Registro> mapa, String chave) {
+        if (chave == null || chave.isBlank()) return 0;
+        Registro r = mapa.get(chave);
+        if (r == null || r.bloqueadoAte == 0) return 0;
         return Math.max(0, (r.bloqueadoAte - System.currentTimeMillis()) / 1000);
     }
 
-    /**
-     * Registra mais um erro de senha para o IP informado.
-     * Retorna o total de tentativas erradas acumuladas.
-     * Se ultrapassar maxTentativas, o IP e bloqueado por bloqueioMs.
-     */
     public int registrarErro(String ip, int maxTentativas, long bloqueioMs) {
+        return registrarErroNoMapa(porIp, ip, maxTentativas, bloqueioMs);
+    }
+
+    public int registrarErroConta(String username, int maxTentativas, long bloqueioMs) {
+        return registrarErroNoMapa(porConta, normalizarConta(username), maxTentativas, bloqueioMs);
+    }
+
+    private int registrarErroNoMapa(ConcurrentHashMap<String, Registro> mapa, String chave, int maxTentativas, long bloqueioMs) {
+        if (chave == null || chave.isBlank()) return 0;
         long agora = System.currentTimeMillis();
-        Registro r = porIp.compute(ip, (chave, atual) -> {
-            if (atual == null || agora - atual.ultimaTentativa > HISTORICO_EXPIRA_MS) {
-                atual = new Registro();
-            }
+        Registro r = mapa.compute(chave, (key, atual) -> {
+            if (atual == null || agora - atual.ultimaTentativa > HISTORICO_EXPIRA_MS) atual = new Registro();
             atual.tentativas++;
             atual.ultimaTentativa = agora;
-            if (atual.tentativas > maxTentativas) {
-                atual.bloqueadoAte = agora + bloqueioMs;
-            }
+            if (atual.tentativas > maxTentativas) atual.bloqueadoAte = agora + bloqueioMs;
             return atual;
         });
         return r.tentativas;
     }
 
-    /** Chamado quando o login e feito com sucesso, para limpar o historico do IP. */
     public void limparAoLogar(String ip) {
         porIp.remove(ip);
+    }
+
+    public void limparContaAoLogar(String username) {
+        porConta.remove(normalizarConta(username));
+    }
+
+    private static String normalizarConta(String username) {
+        return username == null ? null : username.toLowerCase(Locale.ROOT);
     }
 }
