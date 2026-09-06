@@ -51,7 +51,7 @@ public class AuthSystem extends JavaPlugin {
 
     /**
      * Cria e atualiza as opcoes novas no config.yml sem apagar configuracoes existentes.
-     * Assim, servidores que ja possuem um config antigo recebem as novas opcoes automaticamente.
+     * Tambem remove configuracoes antigas que foram substituidas.
      */
     private void ensureConfigDefaults() {
         getConfig().addDefault("tempo-limite-login-segundos", 60);
@@ -61,6 +61,9 @@ public class AuthSystem extends JavaPlugin {
         getConfig().addDefault("maximo-caracteres-senha", PasswordUtils.DEFAULT_MAX_PASSWORD_LENGTH);
         getConfig().addDefault("max-contas-por-ip", 1);
         getConfig().addDefault("max-ips-por-conta", 1);
+
+        // A opcao antiga foi substituida pelas configuracoes de minimo e maximo.
+        getConfig().set("tamanho-minimo-senha", null);
 
         getConfig().options().copyDefaults(true);
         saveConfig();
