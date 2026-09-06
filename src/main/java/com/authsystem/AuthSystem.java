@@ -11,6 +11,7 @@ import com.authsystem.manager.PlayerDataManager;
 import com.authsystem.manager.SessionManager;
 import com.authsystem.util.PremiumAuthenticator;
 import com.authsystem.util.PremiumLoginVerifier;
+import com.authsystem.util.PasswordUtils;
 import com.github.retrooper.packetevents.PacketEvents;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -56,6 +57,8 @@ public class AuthSystem extends JavaPlugin {
         getConfig().addDefault("tempo-limite-login-segundos", 60);
         getConfig().addDefault("max-tentativas-login", 3);
         getConfig().addDefault("bloqueio-apos-exceder-tentativas-minutos", 5);
+        getConfig().addDefault("minimo-caracteres-senha", PasswordUtils.DEFAULT_MIN_PASSWORD_LENGTH);
+        getConfig().addDefault("maximo-caracteres-senha", PasswordUtils.DEFAULT_MAX_PASSWORD_LENGTH);
         getConfig().addDefault("max-contas-por-ip", 1);
         getConfig().addDefault("max-ips-por-conta", 1);
 
