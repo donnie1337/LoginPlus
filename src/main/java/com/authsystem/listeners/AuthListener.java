@@ -1,7 +1,7 @@
 package com.authsystem.listeners;
 
 import com.authsystem.AuthSystem;
-import com.authsystem.util.PremiumChecker;
+import com.authsystem.util.PremiumAuthenticator;
 import org.bukkit.ChatColor;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -26,18 +26,9 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * Controla todo o fluxo de autenticacao:
- *  - No pre-login (assincrono), consulta a Mojang para saber se a conta e original.
- *  - No join, ou libera o jogador (se for premium) ou "congela" ele ate logar/registrar.
- *  - Enquanto nao autenticado: bloqueia movimento, chat, comandos, dano, fome,
- *    quebra/colocacao de blocos e interacoes.
- */
+/** Handles the post-handshake authentication state and login protection. */
 public class AuthListener implements Listener {
-
     private final AuthSystem plugin;
-
-    // Resultado da checagem premium feita no pre-login, aguardando o PlayerJoinEvent.
     private final ConcurrentHashMap<UUID, Boolean> preLoginPremiumResult = new ConcurrentHashMap<>();
 
     private static final List<String> COMANDOS_PERMITIDOS =
@@ -47,14 +38,9 @@ public class AuthListener implements Listener {
         this.plugin = plugin;
     }
 
-    // Este evento ja roda FORA da thread principal por padrao do Bukkit,
-    // entao e seguro fazer aqui a chamada HTTP (bloqueante) para a Mojang.
     @EventHandler
     public void onPreLogin(AsyncPlayerPreLoginEvent event) {
         String ip = event.getAddress().getHostAddress();
-
-        // Anti-bypass: se esse IP errou a senha demais recentemente, nem
-        // deixa conectar - assim desconectar e reconectar nao adianta nada.
         if (plugin.getLoginProtection().estaBloqueado(ip)) {
             long restante = plugin.getLoginProtection().segundosRestantes(ip);
             event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_OTHER,
@@ -63,7 +49,10 @@ public class AuthListener implements Listener {
             return;
         }
 
-        boolean premium = PremiumChecker.isPremium(event.getName());
+        // CRITICAL: never call PremiumChecker here. A Mojang name lookup does not prove
+        // ownership of the account. Only the cryptographic PacketEvents handshake can do that.
+        UUID verifiedUuid = plugin.getPremiumAuthenticator().consumeVerified(event.getName());
+        boolean premium = verifiedUuid != null;
         preLoginPremiumResult.put(event.getUniqueId(), premium);
     }
 
@@ -76,13 +65,11 @@ public class AuthListener implements Listener {
         if (premium) {
             plugin.getSessionManager().markPremium(player.getUniqueId());
             plugin.getSessionManager().setAuthenticated(player, true);
-            player.sendMessage(ChatColor.GREEN + "Conta original detectada! Login automatico realizado.");
+            player.sendMessage(ChatColor.GREEN + "Conta original verificada! Login automatico realizado.");
             return;
         }
 
-        // Jogador "pirata": precisa fazer /login ou /registro.
         plugin.getSessionManager().setFrozenLocation(player, player.getLocation());
-
         boolean registrado = plugin.getPlayerDataManager().isRegistered(player.getName());
         if (registrado) {
             player.sendMessage(ChatColor.YELLOW + "Bem-vindo de volta! Use /login <senha> para entrar.");
@@ -102,11 +89,13 @@ public class AuthListener implements Listener {
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
         plugin.getSessionManager().clear(event.getPlayer());
+        plugin.getPremiumAuthenticator().clear(event.getPlayer().getName());
     }
 
     @EventHandler
     public void onKick(PlayerKickEvent event) {
         plugin.getSessionManager().clear(event.getPlayer());
+        plugin.getPremiumAuthenticator().clear(event.getPlayer().getName());
     }
 
     private boolean precisaBloquear(Player player) {
@@ -115,10 +104,7 @@ public class AuthListener implements Listener {
 
     @EventHandler(priority = EventPriority.LOWEST)
     public void onMove(PlayerMoveEvent event) {
-        if (!precisaBloquear(event.getPlayer())) {
-            return;
-        }
-        // Permite olhar em volta, mas nao andar, enquanto nao logado.
+        if (!precisaBloquear(event.getPlayer())) return;
         if (event.getFrom().getX() != event.getTo().getX()
                 || event.getFrom().getY() != event.getTo().getY()
                 || event.getFrom().getZ() != event.getTo().getZ()) {
@@ -128,9 +114,7 @@ public class AuthListener implements Listener {
 
     @EventHandler
     public void onCommand(PlayerCommandPreprocessEvent event) {
-        if (!precisaBloquear(event.getPlayer())) {
-            return;
-        }
+        if (!precisaBloquear(event.getPlayer())) return;
         String cmd = event.getMessage().split(" ")[0].toLowerCase();
         if (!COMANDOS_PERMITIDOS.contains(cmd)) {
             event.setCancelled(true);
@@ -138,10 +122,6 @@ public class AuthListener implements Listener {
         }
     }
 
-    // Observacao: a partir do sistema de chat assinado (1.19+), o Spigot
-    // ainda mantem esse evento por compatibilidade, mas se notar problemas
-    // no seu build especifico do 26.2, considere migrar para o listener de
-    // chat mais novo da API (ou usar ProtocolLib).
     @EventHandler
     public void onChat(AsyncPlayerChatEvent event) {
         if (precisaBloquear(event.getPlayer())) {
@@ -152,43 +132,31 @@ public class AuthListener implements Listener {
 
     @EventHandler
     public void onDamage(EntityDamageEvent event) {
-        if (event.getEntity() instanceof Player player && precisaBloquear(player)) {
-            event.setCancelled(true);
-        }
+        if (event.getEntity() instanceof Player player && precisaBloquear(player)) event.setCancelled(true);
     }
 
     @EventHandler
     public void onFoodLevelChange(FoodLevelChangeEvent event) {
-        if (event.getEntity() instanceof Player player && precisaBloquear(player)) {
-            event.setCancelled(true);
-        }
+        if (event.getEntity() instanceof Player player && precisaBloquear(player)) event.setCancelled(true);
     }
 
     @EventHandler
     public void onBlockBreak(BlockBreakEvent event) {
-        if (precisaBloquear(event.getPlayer())) {
-            event.setCancelled(true);
-        }
+        if (precisaBloquear(event.getPlayer())) event.setCancelled(true);
     }
 
     @EventHandler
     public void onBlockPlace(BlockPlaceEvent event) {
-        if (precisaBloquear(event.getPlayer())) {
-            event.setCancelled(true);
-        }
+        if (precisaBloquear(event.getPlayer())) event.setCancelled(true);
     }
 
     @EventHandler
     public void onInteract(PlayerInteractEvent event) {
-        if (precisaBloquear(event.getPlayer())) {
-            event.setCancelled(true);
-        }
+        if (precisaBloquear(event.getPlayer())) event.setCancelled(true);
     }
 
     @EventHandler
     public void onDropItem(PlayerDropItemEvent event) {
-        if (precisaBloquear(event.getPlayer())) {
-            event.setCancelled(true);
-        }
+        if (precisaBloquear(event.getPlayer())) event.setCancelled(true);
     }
 }
