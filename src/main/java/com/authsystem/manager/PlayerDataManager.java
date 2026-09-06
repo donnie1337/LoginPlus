@@ -134,16 +134,17 @@ public class PlayerDataManager {
     }
 
     /**
-     * Registra uma conta somente se a senha respeitar todas as regras de seguranca
-     * e o limite de contas por IP configurado no servidor.
-     * A validacao aqui evita que futuras chamadas internas contornem a validacao do comando.
+     * Registra a conta e aplica os limites configurados no servidor.
+     * A validacao aqui evita que futuras chamadas internas contornem as regras do comando.
      */
     public synchronized boolean register(String username, String password, String ip) {
         if (username == null || username.isBlank() || isRegistered(username)) {
             return false;
         }
 
-        if (PasswordUtils.validatePassword(password) != null) {
+        int minSenha = plugin.getConfig().getInt("minimo-caracteres-senha", PasswordUtils.DEFAULT_MIN_PASSWORD_LENGTH);
+        int maxSenha = plugin.getConfig().getInt("maximo-caracteres-senha", PasswordUtils.DEFAULT_MAX_PASSWORD_LENGTH);
+        if (PasswordUtils.validatePassword(password, minSenha, maxSenha) != null) {
             return false;
         }
 
