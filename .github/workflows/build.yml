@@ -2,7 +2,7 @@ name: Build AuthSystem
 
 on:
   push:
-    branches: [main]
+    branches: [main, seguranca-hardening]
   pull_request:
 
 jobs:
@@ -11,11 +11,26 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: Set up Java 21
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '21'
           cache: maven
+
+      - name: Download BuildTools
+        run: curl -fsSL -o BuildTools.jar https://hub.spigotmc.org/jenkins/job/BuildTools/lastSuccessfulBuild/artifact/target/BuildTools.jar
+
+      - name: Generate Spigot API
+        run: java -jar BuildTools.jar --rev 26.2 --compile API
+
       - name: Build
         run: mvn -B clean package
+
+      - name: Validate JAR resources
+        run: |
+          test -f target/AuthSystem.jar
+          unzip -l target/AuthSystem.jar | grep -q 'config.yml'
+          unzip -l target/AuthSystem.jar | grep -q 'plugin.yml'
+          unzip -p target/AuthSystem.jar config.yml | grep -Fq 'max-contas-por-ip: 1'
