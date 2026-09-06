@@ -51,6 +51,14 @@ seguranca:
   # 0 = ilimitado (nao recomendado em servidores publicos).
   max-verificacoes-premium-simultaneas: 4
 
+  # Limita quantos handshakes premium podem ficar pendentes globalmente.
+  # Evita que conexoes maliciosas consumam memoria mantendo desafios abertos.
+  max-handshakes-premium-pendentes: 100
+
+  # Limita quantos handshakes premium podem ficar pendentes pelo mesmo IP.
+  # Evita concentracao de conexoes maliciosas em um unico endereco.
+  max-handshakes-premium-por-ip: 3
+
 # ------------------------------------------------------------
 # CONTAS AUTENTICADAS POR IP
 # ------------------------------------------------------------
