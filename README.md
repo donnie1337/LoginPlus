@@ -87,6 +87,24 @@ Três camadas trabalham juntas para impedir que alguém contorne o login:
    (padrão: 5 minutos), mesmo reconectando ela é barrada já no pré-login,
    antes até de entrar no servidor.
 
+## Limite de contas por IP
+
+O plugin permite limitar quantas contas diferentes podem ser cadastradas
+usando o mesmo endereço IP. Essa proteção é configurável no `config.yml`
+por meio de `max-contas-por-ip`.
+
+```yaml
+max-contas-por-ip: 1
+```
+
+- `1` = permite apenas uma conta por IP.
+- `2` = permite até duas contas por IP.
+- `0` = desativa o limite.
+
+O endereço IP utilizado no cadastro é armazenado junto aos dados da conta.
+Assim, o limite é aplicado aos novos registros sem impedir o login de contas
+que já existem.
+
 ## Comandos
 
 | Comando | Descrição |
@@ -101,4 +119,5 @@ tempo-limite-login-segundos: 60             # tempo para logar antes do kick
 max-tentativas-login: 3                     # erros de senha permitidos antes do kick
 bloqueio-apos-exceder-tentativas-minutos: 5 # bloqueio de IP apos exceder o limite acima
 tamanho-minimo-senha: 4                     # tamanho minimo da senha no /registro
+max-contas-por-ip: 1                        # quantidade maxima de contas por IP
 ```
