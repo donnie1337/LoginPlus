@@ -212,24 +212,6 @@ login: "&eFaça o login"
 
 O PacketEvents deve estar instalado no servidor em `plugins/`.
 
-## Compilação
-
-O projeto utiliza Maven.
-
-Para gerar o JAR:
-
-```bash
-mvn clean package
-```
-
-O arquivo gerado ficará em:
-
-```text
-target/AuthSystem.jar
-```
-
-O projeto utiliza Java 21 como versão de compilação.
-
 ## Configuração do servidor
 
 No `server.properties`, a configuração deve ser:
