@@ -1,6 +1,7 @@
 package com.authsystem.listeners;
 
 import com.authsystem.AuthSystem;
+import com.authsystem.util.IpResolver;
 import com.authsystem.util.PremiumAuthenticator;
 import com.authsystem.util.PremiumLoginVerifier;
 import com.github.retrooper.packetevents.event.PacketListenerAbstract;
@@ -22,7 +23,6 @@ import org.bukkit.scheduler.BukkitTask;
 import javax.crypto.Cipher;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
-import java.net.InetSocketAddress;
 import java.security.GeneralSecurityException;
 import java.util.List;
 import java.util.Optional;
@@ -60,8 +60,7 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
         User user = event.getUser();
         ClientVersion version = user.getClientVersion();
         UUID playerUuid = packet.getPlayerUUID().orElse(null);
-        InetSocketAddress address = user.getAddress();
-        String ip = address != null && address.getAddress() != null ? address.getAddress().getHostAddress() : null;
+        String ip = IpResolver.getUserIp(user);
         if (ip == null || ip.isBlank()) {
             LOGGER.warning("Nao foi possivel identificar o IP durante o handshake premium de " + username + ". Continuando como cracked.");
             event.setCancelled(true);
@@ -188,11 +187,10 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
     }
 
     private static String connectionKey(User user) {
-        InetSocketAddress address = user.getAddress();
-        if (address == null || address.getAddress() == null) return null;
-        String host = address.getAddress().getHostAddress();
+        if (user == null || user.getAddress() == null || user.getAddress().getAddress() == null) return null;
+        String host = user.getAddress().getAddress().getHostAddress();
         if (host == null || host.isBlank()) return null;
-        return host + ":" + address.getPort();
+        return host + ":" + user.getAddress().getPort();
     }
 
     private record PendingConnection(String username, ClientVersion version, UUID playerUuid, String ip) {}
