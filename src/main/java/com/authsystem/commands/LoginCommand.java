@@ -92,11 +92,12 @@ public class LoginCommand implements CommandExecutor {
                         passwordData.iterations()
                 );
 
-                if (senhaCorreta && passwordData.iterations() < PasswordUtils.CURRENT_ITERATIONS) {
+                int currentIterations = plugin.getPasswordIterations();
+                if (senhaCorreta && passwordData.iterations() < currentIterations) {
                     String novoSalt = PasswordUtils.generateSalt();
-                    String novoHash = PasswordUtils.hash(senha, novoSalt, PasswordUtils.CURRENT_ITERATIONS);
+                    String novoHash = PasswordUtils.hash(senha, novoSalt, currentIterations);
                     Bukkit.getScheduler().runTask(plugin, () -> {
-                        plugin.getPlayerDataManager().upgradePasswordHash(username, novoSalt, novoHash, PasswordUtils.CURRENT_ITERATIONS);
+                        plugin.getPlayerDataManager().upgradePasswordHash(username, novoSalt, novoHash, currentIterations);
                     });
                 }
 
