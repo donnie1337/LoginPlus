@@ -82,6 +82,7 @@ public class AuthSystem extends JavaPlugin {
 
         getLogger().info("AuthSystem ativado com autenticacao premium criptografica!");
         getLogger().info("Senha: " + getConfig().getInt("minimo-caracteres-senha", 7) + " a " + getConfig().getInt("maximo-caracteres-senha", 16) + " caracteres.");
+        getLogger().info("PBKDF2-HMAC-SHA256: " + getPasswordIterations() + " iteracoes (configuravel de " + PasswordUtils.MIN_ITERATIONS + " a " + PasswordUtils.MAX_ITERATIONS + ").");
         getLogger().info("Limite de contas autenticadas por IP: " + getConfig().getInt("max-contas-por-ip", DEFAULT_MAX_ACCOUNTS_PER_IP));
         getLogger().info("Limite de IPs por conta: " + getConfig().getInt("max-ips-por-conta", DEFAULT_MAX_IPS_PER_ACCOUNT));
         getLogger().info("Limite de verificacoes Mojang por IP: " + getConfig().getInt("max-verificacoes-mojang-por-minuto", DEFAULT_MAX_MOJANG_CHECKS_PER_MINUTE));
@@ -104,6 +105,7 @@ public class AuthSystem extends JavaPlugin {
         getConfig().addDefault("registro.max-tentativas-por-ip", 3);
         getConfig().addDefault("registro.janela-minutos", 5);
         getConfig().addDefault("registro.cooldown-segundos", 30);
+        getConfig().addDefault("seguranca.pbkdf2-iteracoes", PasswordUtils.DEFAULT_ITERATIONS);
         getConfig().addDefault("seguranca.max-processamentos-pbkdf2-simultaneos", DEFAULT_MAX_PBKDF2_CONCURRENT);
         getConfig().addDefault("seguranca.max-verificacoes-premium-simultaneas", DEFAULT_MAX_PREMIUM_CHECKS_CONCURRENT);
         getConfig().addDefault("seguranca.max-handshakes-premium-pendentes", DEFAULT_MAX_PENDING_PREMIUM_GLOBAL);
@@ -118,6 +120,7 @@ public class AuthSystem extends JavaPlugin {
         int maxContasIp = getConfig().getInt("max-contas-por-ip", DEFAULT_MAX_ACCOUNTS_PER_IP);
         int maxIpsConta = getConfig().getInt("max-ips-por-conta", DEFAULT_MAX_IPS_PER_ACCOUNT);
         int maxConsultasMojang = getConfig().getInt("max-verificacoes-mojang-por-minuto", DEFAULT_MAX_MOJANG_CHECKS_PER_MINUTE);
+        int pbkdf2Iteracoes = getConfig().getInt("seguranca.pbkdf2-iteracoes", PasswordUtils.DEFAULT_ITERATIONS);
         int maxPbkdf2 = getConfig().getInt("seguranca.max-processamentos-pbkdf2-simultaneos", DEFAULT_MAX_PBKDF2_CONCURRENT);
         int maxPremium = getConfig().getInt("seguranca.max-verificacoes-premium-simultaneas", DEFAULT_MAX_PREMIUM_CHECKS_CONCURRENT);
         int maxPendingGlobal = getConfig().getInt("seguranca.max-handshakes-premium-pendentes", DEFAULT_MAX_PENDING_PREMIUM_GLOBAL);
@@ -128,6 +131,9 @@ public class AuthSystem extends JavaPlugin {
         if (maxContasIp < 0) getConfig().set("max-contas-por-ip", DEFAULT_MAX_ACCOUNTS_PER_IP);
         if (maxIpsConta < 0) getConfig().set("max-ips-por-conta", DEFAULT_MAX_IPS_PER_ACCOUNT);
         if (maxConsultasMojang < 0) getConfig().set("max-verificacoes-mojang-por-minuto", DEFAULT_MAX_MOJANG_CHECKS_PER_MINUTE);
+        if (pbkdf2Iteracoes < PasswordUtils.MIN_ITERATIONS || pbkdf2Iteracoes > PasswordUtils.MAX_ITERATIONS) {
+            getConfig().set("seguranca.pbkdf2-iteracoes", PasswordUtils.DEFAULT_ITERATIONS);
+        }
         if (maxPbkdf2 < 1) getConfig().set("seguranca.max-processamentos-pbkdf2-simultaneos", DEFAULT_MAX_PBKDF2_CONCURRENT);
         if (maxPremium < 1) getConfig().set("seguranca.max-verificacoes-premium-simultaneas", DEFAULT_MAX_PREMIUM_CHECKS_CONCURRENT);
         if (maxPendingGlobal < 1) getConfig().set("seguranca.max-handshakes-premium-pendentes", DEFAULT_MAX_PENDING_PREMIUM_GLOBAL);
@@ -141,6 +147,12 @@ public class AuthSystem extends JavaPlugin {
         if (playerDataManager != null) playerDataManager.shutdown();
         if (premiumAccountManager != null) premiumAccountManager.shutdown();
         getLogger().info("AuthSystem desativado.");
+    }
+
+    public int getPasswordIterations() {
+        return Math.max(PasswordUtils.MIN_ITERATIONS,
+                Math.min(PasswordUtils.MAX_ITERATIONS,
+                        getConfig().getInt("seguranca.pbkdf2-iteracoes", PasswordUtils.DEFAULT_ITERATIONS)));
     }
 
     public PlayerDataManager getPlayerDataManager() { return playerDataManager; }
