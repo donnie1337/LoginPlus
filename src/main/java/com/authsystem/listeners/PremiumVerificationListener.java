@@ -1,7 +1,6 @@
 package com.authsystem.listeners;
 
 import com.authsystem.util.PremiumAuthenticator;
-import com.authsystem.util.PremiumChecker;
 import com.authsystem.util.PremiumLoginVerifier;
 import com.github.retrooper.packetevents.event.PacketListenerAbstract;
 import com.github.retrooper.packetevents.event.PacketReceiveEvent;
@@ -59,75 +58,98 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
     private void handleLoginStart(PacketReceiveEvent event) {
         WrapperLoginClientLoginStart packet = new WrapperLoginClientLoginStart(event);
         String username = packet.getUsername();
-        if (username == null || username.length() < 2 || username.length() > 16) return;
+        if (username == null || username.length() < 2 || username.length() > 16) {
+            return;
+        }
 
         User user = event.getUser();
         ClientVersion version = user.getClientVersion();
         String key = connectionKey(user);
         UUID playerUuid = packet.getPlayerUUID().orElse(null);
         String ip = user.getAddress().getAddress().getHostAddress();
+
+        // The real Login Start must be replayed after the optional premium challenge.
         event.setCancelled(true);
 
-        plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
-            // Name existence is only a candidate filter; it is NEVER the premium decision.
-            boolean candidate = PremiumChecker.isPremium(username);
-            if (!candidate) {
-                connections.remove(key);
+        // Do not query the Mojang name API first. A name lookup is not authentication
+        // and can fail/rate-limit independently of the real session verification.
+        byte[] verifyToken = verifier.start(key, username);
+        connections.put(key, new PendingConnection(username, version, playerUuid, ip));
+        user.sendPacket(new WrapperLoginServerEncryptionRequest(
+                "", verifier.getPublicKey(), verifyToken, true));
+
+        // Cracked clients may not answer an Encryption Request. After a short grace
+        // period, continue the normal offline login flow instead of leaving them stuck.
+        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+            if (connections.remove(key) != null && verifier.hasPending(key)) {
+                verifier.remove(key);
                 resume(user, version, username, playerUuid);
-                return;
             }
-
-            byte[] verifyToken = verifier.start(key, username);
-            connections.put(key, new PendingConnection(username, version, playerUuid, ip));
-            user.sendPacket(new WrapperLoginServerEncryptionRequest(
-                    "", verifier.getPublicKey(), verifyToken, true));
-
-            plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-                if (connections.remove(key) != null && verifier.hasPending(key)) {
-                    verifier.remove(key);
-                    resume(user, version, username, playerUuid);
-                }
-            }, FALLBACK_MS / 50L);
-        });
+        }, FALLBACK_MS / 50L);
     }
 
     private void handleEncryptionResponse(PacketReceiveEvent event) {
         User user = event.getUser();
         String key = connectionKey(user);
         PendingConnection pending = connections.get(key);
-        if (pending == null || !verifier.hasPending(key)) return;
+        if (pending == null || !verifier.hasPending(key)) {
+            return;
+        }
 
         WrapperLoginClientEncryptionResponse packet = new WrapperLoginClientEncryptionResponse(event);
-        Optional<byte[]> token = packet.getEncryptedVerifyToken();
-        if (token.isEmpty()) {
-            connections.remove(key, pending);
-            verifier.remove(key);
-            event.setCancelled(true);
-            resume(user, pending.version(), pending.username(), pending.playerUuid());
-            return;
-        }
+        Optional<byte[]> encryptedToken = packet.getEncryptedVerifyToken();
+        byte[] encryptedSecret = packet.getEncryptedSharedSecret();
 
         event.setCancelled(true);
-        byte[] sharedSecret;
-        try {
-            sharedSecret = verifier.decrypt(packet.getEncryptedSharedSecret());
-            enableEncryption(user.getChannel(), sharedSecret);
-        } catch (GeneralSecurityException e) {
-            connections.remove(key, pending);
-            verifier.remove(key);
-            LOGGER.warning("Could not enable premium encryption for " + pending.username() + ": " + e.getMessage());
-            resume(user, pending.version(), pending.username(), pending.playerUuid());
+
+        if (encryptedToken.isEmpty() || encryptedSecret == null) {
+            failAndResume(key, pending, user);
             return;
         }
 
-        verifier.verify(key, sharedSecret, token.get()).thenAccept(result -> {
+        // Validate the challenge before enabling AES. This prevents an invalid RSA
+        // response from changing the connection's encryption state.
+        if (!verifier.validateToken(key, encryptedToken.get())) {
+            LOGGER.warning("Invalid premium verify token for " + pending.username());
+            failAndResume(key, pending, user);
+            return;
+        }
+
+        final byte[] sharedSecret;
+        try {
+            sharedSecret = verifier.decrypt(encryptedSecret);
+            if (sharedSecret.length != 16) {
+                throw new GeneralSecurityException("Invalid AES secret length: " + sharedSecret.length);
+            }
+            enableEncryption(user.getChannel(), sharedSecret);
+        } catch (GeneralSecurityException e) {
+            LOGGER.warning("Could not enable premium encryption for " + pending.username() + ": " + e.getMessage());
+            failAndResume(key, pending, user);
+            return;
+        }
+
+        // The client switches to AES after sending Encryption Response, so the server
+        // must also switch before sending Login Success or the replayed Login Start.
+        verifier.verify(key, sharedSecret).thenAccept(result -> {
             connections.remove(key, pending);
-            result.ifPresent(uuid -> {
-                authenticator.markVerified(pending.username(), pending.ip(), uuid);
-                LOGGER.info("Premium identity verified for " + pending.username());
-            });
-            resume(user, pending.version(), pending.username(), pending.playerUuid());
+            result.ifPresentOrElse(
+                    uuid -> {
+                        authenticator.markVerified(pending.username(), pending.ip(), uuid);
+                        LOGGER.info("Premium identity verified for " + pending.username());
+                        resume(user, pending.version(), pending.username(), pending.playerUuid());
+                    },
+                    () -> {
+                        LOGGER.info("Mojang session not confirmed for " + pending.username()
+                                + "; continuing as cracked.");
+                        resume(user, pending.version(), pending.username(), pending.playerUuid());
+                    });
         });
+    }
+
+    private void failAndResume(String key, PendingConnection pending, User user) {
+        connections.remove(key, pending);
+        verifier.remove(key);
+        resume(user, pending.version(), pending.username(), pending.playerUuid());
     }
 
     private void resume(User user, ClientVersion version, String username, UUID playerUuid) {
@@ -165,6 +187,7 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
     private static final class AesCfb8Decoder extends MessageToMessageDecoder<ByteBuf> {
         private final Cipher cipher;
         private AesCfb8Decoder(Cipher cipher) { this.cipher = cipher; }
+
         @Override
         protected void decode(ChannelHandlerContext ctx, ByteBuf msg, List<Object> out) {
             byte[] input = new byte[msg.readableBytes()];
@@ -176,6 +199,7 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
     private static final class AesCfb8Encoder extends MessageToByteEncoder<ByteBuf> {
         private final Cipher cipher;
         private AesCfb8Encoder(Cipher cipher) { this.cipher = cipher; }
+
         @Override
         protected void encode(ChannelHandlerContext ctx, ByteBuf input, ByteBuf out) {
             byte[] data = new byte[input.readableBytes()];
