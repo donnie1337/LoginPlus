@@ -75,37 +75,46 @@ public class LoginCommand implements CommandExecutor {
             return true;
         }
 
-        // PBKDF2 (600k/65k iteracoes) e CPU-bound: nunca execute na thread principal do Bukkit.
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-            boolean senhaCorreta = PasswordUtils.verify(
-                    senha,
-                    passwordData.salt(),
-                    passwordData.hash(),
-                    passwordData.iterations()
-            );
+            try {
+                boolean senhaCorreta = PasswordUtils.verify(
+                        senha,
+                        passwordData.salt(),
+                        passwordData.hash(),
+                        passwordData.iterations()
+                );
 
-            if (senhaCorreta && passwordData.iterations() < PasswordUtils.CURRENT_ITERATIONS) {
-                String novoSalt = PasswordUtils.generateSalt();
-                String novoHash = PasswordUtils.hash(senha, novoSalt, PasswordUtils.CURRENT_ITERATIONS);
+                if (senhaCorreta && passwordData.iterations() < PasswordUtils.CURRENT_ITERATIONS) {
+                    String novoSalt = PasswordUtils.generateSalt();
+                    String novoHash = PasswordUtils.hash(senha, novoSalt, PasswordUtils.CURRENT_ITERATIONS);
+                    Bukkit.getScheduler().runTask(plugin, () -> {
+                        plugin.getPlayerDataManager().upgradePasswordHash(username, novoSalt, novoHash, PasswordUtils.CURRENT_ITERATIONS);
+                    });
+                }
+
                 Bukkit.getScheduler().runTask(plugin, () -> {
-                    plugin.getPlayerDataManager().upgradePasswordHash(username, novoSalt, novoHash, PasswordUtils.CURRENT_ITERATIONS);
+                    try {
+                        if (!player.isOnline() || !player.getUniqueId().equals(playerId)) return;
+                        if (plugin.getSessionManager().isAuthenticated(player)) return;
+
+                        if (senhaCorreta) {
+                            concluirLogin(player, username, ip);
+                        } else {
+                            registrarFalha(player, username, ip);
+                        }
+                    } finally {
+                        verificacoesEmAndamento.remove(playerId);
+                    }
+                });
+            } catch (Exception e) {
+                plugin.getLogger().warning("Falha ao processar login de " + username + ": " + e.getMessage());
+                verificacoesEmAndamento.remove(playerId);
+                Bukkit.getScheduler().runTask(plugin, () -> {
+                    if (player.isOnline() && !plugin.getSessionManager().isAuthenticated(player)) {
+                        player.sendMessage(ChatColor.RED + "Não foi possível verificar sua senha. Tente novamente.");
+                    }
                 });
             }
-
-            Bukkit.getScheduler().runTask(plugin, () -> {
-                try {
-                    if (!player.isOnline() || !player.getUniqueId().equals(playerId)) return;
-                    if (plugin.getSessionManager().isAuthenticated(player)) return;
-
-                    if (senhaCorreta) {
-                        concluirLogin(player, username, ip);
-                    } else {
-                        registrarFalha(player, username, ip);
-                    }
-                } finally {
-                    verificacoesEmAndamento.remove(playerId);
-                }
-            });
         });
 
         player.sendMessage(ChatColor.YELLOW + "Verificando sua senha...");
