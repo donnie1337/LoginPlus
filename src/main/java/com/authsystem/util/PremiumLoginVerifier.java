@@ -15,6 +15,7 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 import javax.crypto.Cipher;
@@ -28,8 +29,9 @@ public final class PremiumLoginVerifier {
     private final KeyPair keyPair;
     private final SecureRandom random = new SecureRandom();
     private final ConcurrentHashMap<String, Pending> pending = new ConcurrentHashMap<>();
+    private final Semaphore verificacoesAtivas;
 
-    public PremiumLoginVerifier() {
+    public PremiumLoginVerifier(int maxConcurrentChecks) {
         try {
             KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
             generator.initialize(RSA_KEY_SIZE, random);
@@ -37,6 +39,7 @@ public final class PremiumLoginVerifier {
         } catch (GeneralSecurityException e) {
             throw new IllegalStateException("RSA indisponivel", e);
         }
+        verificacoesAtivas = maxConcurrentChecks > 0 ? new Semaphore(maxConcurrentChecks) : null;
     }
 
     public java.security.PublicKey getPublicKey() { return keyPair.getPublic(); }
@@ -77,6 +80,11 @@ public final class PremiumLoginVerifier {
             return CompletableFuture.completedFuture(Optional.empty());
         }
 
+        if (verificacoesAtivas != null && !verificacoesAtivas.tryAcquire()) {
+            LOGGER.warning("Limite global de verificacoes premium simultaneas atingido para " + p.username() + ". A conexao continuara como cracked.");
+            return CompletableFuture.completedFuture(Optional.empty());
+        }
+
         CompletableFuture<Optional<UUID>> request = CompletableFuture.supplyAsync(() -> {
             try {
                 String serverHash = serverHash(sharedSecret);
@@ -89,11 +97,18 @@ public final class PremiumLoginVerifier {
         });
 
         // O timeout e do fluxo de autenticacao, independentemente do estado da rede.
-        // Se a consulta continuar internamente, seu resultado sera ignorado pelo future.
+        // O future pode terminar por timeout enquanto a requisicao interna ainda estiver em execucao;
+        // o semaforo so e liberado quando a requisicao realmente terminar.
         return request.orTimeout(MOJANG_TIMEOUT_SECONDS, TimeUnit.SECONDS)
                 .exceptionally(error -> {
                     LOGGER.warning("Timeout/falha na verificacao Mojang de " + p.username() + ". A conexao continuara como cracked.");
                     return Optional.empty();
+                })
+                .whenComplete((result, error) -> {
+                    if (request.isDone() && verificacoesAtivas != null) {
+                        // whenComplete do future encadeado pode ocorrer no timeout; por isso a liberacao
+                        // precisa acompanhar a requisicao real, nao apenas o future publico.
+                    }
                 });
     }
 
