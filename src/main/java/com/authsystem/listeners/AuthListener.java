@@ -22,8 +22,9 @@ import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.scheduler.BukkitTask;
 
 import java.util.List;
+import java.util.Locale;
 
-/** Handles the post-handshake authentication state and login protection. */
+/** Controla o estado de autenticacao depois do handshake e a protecao de login. */
 public class AuthListener implements Listener {
     private final AuthSystem plugin;
     private static final List<String> COMANDOS_PERMITIDOS =
@@ -50,6 +51,13 @@ public class AuthListener implements Listener {
                 : player.getAddress().getAddress().getHostAddress();
 
         if (plugin.getPremiumAuthenticator().consumeVerified(player.getName(), ip) != null) {
+            int limiteContas = plugin.getConfig().getInt("max-contas-por-ip", 1);
+            if (!plugin.getSessionManager().tryRegisterAuthenticatedIp(ip, player.getUniqueId(), limiteContas)) {
+                player.kickPlayer(ChatColor.RED + "Este IP já atingiu o limite de " + limiteContas
+                        + " conta(s) conectada(s) ao mesmo tempo.");
+                return;
+            }
+
             plugin.getSessionManager().markPremium(player.getUniqueId());
             plugin.getSessionManager().setAuthenticated(player, true);
             enviarTitleAutenticacao(player,
@@ -59,7 +67,6 @@ public class AuthListener implements Listener {
             return;
         }
 
-        plugin.getSessionManager().setFrozenLocation(player, player.getLocation());
         boolean registrado = plugin.getPlayerDataManager().isRegistered(player.getName());
 
         if (registrado) {
@@ -74,7 +81,7 @@ public class AuthListener implements Listener {
             player.sendMessage(ChatColor.YELLOW + "Bem-vindo! Use /registro <senha> <confirmar-senha> para criar sua conta.");
         }
 
-        int timeoutSegundos = plugin.getConfig().getInt("tempo-limite-login-segundos", 60);
+        int timeoutSegundos = Math.max(1, plugin.getConfig().getInt("tempo-limite-login-segundos", 60));
         BukkitTask task = plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
             if (player.isOnline() && !plugin.getSessionManager().isAuthenticated(player)) {
                 player.kickPlayer(ChatColor.RED + "Você demorou muito para fazer login/registro.");
@@ -118,7 +125,9 @@ public class AuthListener implements Listener {
     @EventHandler
     public void onCommand(PlayerCommandPreprocessEvent event) {
         if (!precisaBloquear(event.getPlayer())) return;
-        String cmd = event.getMessage().split(" ")[0].toLowerCase();
+        String message = event.getMessage().trim();
+        int separator = message.indexOf(' ');
+        String cmd = (separator >= 0 ? message.substring(0, separator) : message).toLowerCase(Locale.ROOT);
         if (!COMANDOS_PERMITIDOS.contains(cmd)) {
             event.setCancelled(true);
             event.getPlayer().sendMessage(ChatColor.RED + "Faça login ou se registre antes de usar comandos.");

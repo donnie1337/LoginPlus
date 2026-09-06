@@ -35,8 +35,7 @@
             <scope>provided</scope>
         </dependency>
 
-        <!-- PacketEvents 2.13.0 adds Minecraft 26.2 support and is used only for
-             the login handshake. Install PacketEvents 2.13.0+ in plugins/. -->
+        <!-- O PacketEvents 2.13.0 adiciona suporte ao Minecraft 26.2 e e usado apenas no handshake de login. Instale o PacketEvents 2.13.0 ou superior em plugins/. -->
         <dependency>
             <groupId>com.github.retrooper</groupId>
             <artifactId>packetevents-spigot</artifactId>
@@ -47,11 +46,27 @@
 
     <build>
         <finalName>${project.name}</finalName>
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>false</filtering>
+            </resource>
+        </resources>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.13.0</version>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-resources-plugin</artifactId>
+                <version>3.3.1</version>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>3.4.2</version>
             </plugin>
         </plugins>
     </build>

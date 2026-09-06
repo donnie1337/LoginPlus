@@ -41,9 +41,8 @@ public class AntiBypassListener implements Listener {
 
     @EventHandler(priority = EventPriority.LOWEST)
     public void onTeleport(PlayerTeleportEvent event) {
-        // Nenhum teleporte deve alterar a posicao do jogador antes do login.
-        // Isso evita que plugins externos sejam usados para escapar do congelamento.
-        if (bloqueado(event.getPlayer())) {
+        // Teleportes causados por plugins podem ser usados para levar o jogador ao spawn/lobby.
+        if (bloqueado(event.getPlayer()) && event.getCause() != PlayerTeleportEvent.TeleportCause.PLUGIN) {
             event.setCancelled(true);
         }
     }

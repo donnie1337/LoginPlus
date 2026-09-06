@@ -2,8 +2,8 @@ package com.authsystem.util;
 
 import java.io.InputStream;
 import java.net.HttpURLConnection;
-import java.net.URLEncoder;
 import java.net.URI;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.KeyPair;
@@ -19,6 +19,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 import javax.crypto.Cipher;
 
+/** Realiza o desafio criptografico usado para verificar contas premium. */
 public final class PremiumLoginVerifier {
     private static final Logger LOGGER = Logger.getLogger("AuthSystem");
     private final KeyPair keyPair;
@@ -31,7 +32,7 @@ public final class PremiumLoginVerifier {
             generator.initialize(1024, random);
             keyPair = generator.generateKeyPair();
         } catch (GeneralSecurityException e) {
-            throw new IllegalStateException("RSA is unavailable", e);
+            throw new IllegalStateException("RSA indisponivel", e);
         }
     }
 
@@ -50,11 +51,6 @@ public final class PremiumLoginVerifier {
         return pending.containsKey(connectionKey);
     }
 
-    public String getPendingUsername(String connectionKey) {
-        Pending p = pending.get(connectionKey);
-        return p == null ? null : p.username();
-    }
-
     public void remove(String connectionKey) {
         pending.remove(connectionKey);
     }
@@ -65,7 +61,7 @@ public final class PremiumLoginVerifier {
         return cipher.doFinal(encrypted);
     }
 
-    /** Validates the client response token without consuming the pending session. */
+    /** Valida o token enviado pelo cliente sem consumir a sessao pendente. */
     public boolean validateToken(String connectionKey, byte[] encryptedToken) {
         Pending p = pending.get(connectionKey);
         if (p == null || encryptedToken == null) {
@@ -73,19 +69,16 @@ public final class PremiumLoginVerifier {
         }
         try {
             byte[] token = decrypt(encryptedToken);
-            return Arrays.equals(token, p.verifyToken());
+            return MessageDigest.isEqual(token, p.verifyToken());
         } catch (GeneralSecurityException e) {
-            LOGGER.fine("Invalid premium verify token: " + e.getMessage());
+            LOGGER.fine("Token de verificacao premium invalido: " + e.getMessage());
             return false;
         }
     }
 
     public CompletableFuture<Optional<UUID>> verify(String connectionKey, byte[] sharedSecret) {
         Pending p = pending.remove(connectionKey);
-        if (p == null) {
-            return CompletableFuture.completedFuture(Optional.empty());
-        }
-        if (sharedSecret == null || sharedSecret.length != 16) {
+        if (p == null || sharedSecret == null || sharedSecret.length != 16) {
             return CompletableFuture.completedFuture(Optional.empty());
         }
         return CompletableFuture.supplyAsync(() -> {
@@ -94,7 +87,7 @@ public final class PremiumLoginVerifier {
                 LOGGER.info("Verificando conta premium " + p.username() + " na Mojang (serverId=" + serverHash + ")");
                 return hasJoined(p.username(), serverHash);
             } catch (Exception e) {
-                LOGGER.warning("Premium verification failed for " + p.username() + ": " + e.getMessage());
+                LOGGER.warning("Falha na verificacao premium de " + p.username() + ": " + e.getMessage());
                 return Optional.empty();
             }
         });
@@ -125,13 +118,10 @@ public final class PremiumLoginVerifier {
             }
             try (InputStream input = connection.getInputStream()) {
                 String body = new String(input.readAllBytes(), StandardCharsets.UTF_8);
-
-                // Mojang's JSON response may contain spaces around ':' (for example
-                // \"id\" : \"...\"). Do not depend on one exact JSON formatting.
                 String marker = "\"id\"";
                 int markerStart = body.indexOf(marker);
                 if (markerStart < 0) {
-                    LOGGER.warning("Mojang respondeu sem UUID para " + username + ". Resposta recebida: " + body);
+                    LOGGER.warning("Mojang respondeu sem UUID para " + username + ".");
                     return Optional.empty();
                 }
                 int colon = body.indexOf(':', markerStart + marker.length());

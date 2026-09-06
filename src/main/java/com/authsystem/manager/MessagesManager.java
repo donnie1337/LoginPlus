@@ -1,61 +1,36 @@
 package com.authsystem.manager;
 
-import com.authsystem.AuthSystem;
 import org.bukkit.ChatColor;
-import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
-import java.io.IOException;
-import java.util.logging.Level;
 
-/** Carrega os textos dos Titles de autenticacao a partir de mensagens/titulos.yml. */
-public class MessagesManager {
-    private final AuthSystem plugin;
-    private final File file;
-    private FileConfiguration config;
+/** Carrega os textos dos Titles de autenticacao sem depender de configuracao externa obrigatoria. */
+public final class MessagesManager {
+    private final YamlConfiguration titles;
 
-    public MessagesManager(AuthSystem plugin) {
-        this.plugin = plugin;
-        File pasta = new File(plugin.getDataFolder(), "mensagens");
-        if (!pasta.exists()) {
-            pasta.mkdirs();
-        }
-
-        this.file = new File(pasta, "titulos.yml");
-        criarArquivoSeNecessario();
-        reload();
-    }
-
-    private void criarArquivoSeNecessario() {
-        if (file.exists()) {
-            return;
-        }
-
-        try {
+    public MessagesManager(JavaPlugin plugin) {
+        File file = new File(plugin.getDataFolder(), "mensagens/titulos.yml");
+        if (!file.exists()) {
             plugin.saveResource("mensagens/titulos.yml", false);
-        } catch (IllegalArgumentException e) {
-            plugin.getLogger().log(Level.SEVERE, "Não foi possível encontrar mensagens/titulos.yml no plugin.", e);
         }
-    }
-
-    public void reload() {
-        config = YamlConfiguration.loadConfiguration(file);
+        this.titles = YamlConfiguration.loadConfiguration(file);
     }
 
     public String getTitleBemVindo() {
-        return formatar(config.getString("bem-vindo", "&aBem-vindo"));
+        return color(titles.getString("bem-vindo", "&aBem-vindo"));
     }
 
     public String getTitleRegistro() {
-        return formatar(config.getString("registro", "&eFaça o registro"));
+        return color(titles.getString("registro", "&eFaça o registro"));
     }
 
     public String getTitleLogin() {
-        return formatar(config.getString("login", "&eFaça o login"));
+        return color(titles.getString("login", "&eFaça o login"));
     }
 
-    private String formatar(String texto) {
-        return ChatColor.translateAlternateColorCodes('&', texto);
+    private String color(String value) {
+        return ChatColor.translateAlternateColorCodes('&', value);
     }
 }

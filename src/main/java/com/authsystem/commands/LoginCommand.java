@@ -43,11 +43,31 @@ public class LoginCommand implements CommandExecutor {
         }
 
         String senha = args[0];
-        String ip = player.getAddress() != null
+        String ip = player.getAddress() != null && player.getAddress().getAddress() != null
                 ? player.getAddress().getAddress().getHostAddress()
-                : "desconhecido";
+                : null;
+
+        if (ip == null || ip.isBlank()) {
+            player.sendMessage(ChatColor.RED + "Não foi possível identificar seu IP. Tente entrar novamente.");
+            return true;
+        }
 
         if (plugin.getPlayerDataManager().checkPassword(player.getName(), senha)) {
+            int limiteIps = plugin.getConfig().getInt("max-ips-por-conta", 1);
+
+            if (!plugin.getPlayerDataManager().canUseIp(player.getName(), ip, limiteIps)) {
+                player.sendMessage(ChatColor.RED + "Esta conta já atingiu o limite de " + limiteIps + " IP(s) permitido(s).");
+                return true;
+            }
+
+            int limiteContas = plugin.getConfig().getInt("max-contas-por-ip", 1);
+            if (!plugin.getSessionManager().tryRegisterAuthenticatedIp(ip, player.getUniqueId(), limiteContas)) {
+                player.sendMessage(ChatColor.RED + "Este IP já atingiu o limite de " + limiteContas
+                        + " conta(s) conectada(s) ao mesmo tempo.");
+                return true;
+            }
+
+            plugin.getPlayerDataManager().addIp(player.getName(), ip);
             plugin.getSessionManager().setAuthenticated(player, true);
             plugin.getSessionManager().cancelTimeout(player);
             plugin.getLoginProtection().limparAoLogar(ip);
@@ -55,10 +75,9 @@ public class LoginCommand implements CommandExecutor {
             return true;
         }
 
-        // Anti-bypass: a contagem de erros fica presa ao IP (não à sessão),
-        // então sair e entrar de novo no servidor não reseta as tentativas.
-        int max = plugin.getConfig().getInt("max-tentativas-login", 3);
-        long bloqueioMs = plugin.getConfig().getInt("bloqueio-apos-exceder-tentativas-minutos", 5) * 60_000L;
+        int max = Math.max(1, plugin.getConfig().getInt("max-tentativas-login", 3));
+        long minutosBloqueio = Math.max(1L, plugin.getConfig().getLong("bloqueio-apos-exceder-tentativas-minutos", 5));
+        long bloqueioMs = minutosBloqueio * 60_000L;
         int tentativas = plugin.getLoginProtection().registrarErro(ip, max, bloqueioMs);
 
         if (tentativas > max) {
