@@ -69,7 +69,7 @@ jobs:
           validar_linha /tmp/authsystem-jar/config.yml 'maximo-caracteres-senha: 16'
           validar_linha /tmp/authsystem-jar/config.yml 'max-contas-por-ip: 1'
           validar_linha /tmp/authsystem-jar/config.yml 'max-ips-por-conta: 1'
-          validar_linha /tmp/authsystem-jar/plugin.yml "version: '1.1.1'"
+          validar_linha /tmp/authsystem-jar/plugin.yml "version: '1.1.2'"
 
           if grep -F 'tamanho-minimo-senha:' /tmp/authsystem-jar/config.yml >/dev/null; then
             echo 'ERRO: configuracao antiga tamanho-minimo-senha ainda esta no JAR.'

@@ -52,8 +52,8 @@ public class AuthSystem extends JavaPlugin {
     }
 
     /**
-     * Cria e atualiza as opcoes novas no config.yml sem apagar configuracoes existentes.
-     * Tambem migra configuracoes antigas que foram substituidas.
+     * Garante que o config.yml tenha todas as opcoes atuais sem apagar configuracoes personalizadas.
+     * Tambem remove a antiga opcao de tamanho minimo da senha para evitar conflito.
      */
     private void ensureConfigDefaults() {
         getConfig().addDefault("tempo-limite-login-segundos", 60);
@@ -64,13 +64,14 @@ public class AuthSystem extends JavaPlugin {
         getConfig().addDefault("max-contas-por-ip", 1);
         getConfig().addDefault("max-ips-por-conta", 1);
 
-        // Se o servidor ainda usa a configuracao antiga, migra para os limites atuais.
-        if (getConfig().contains("tamanho-minimo-senha")) {
+        boolean configAntigaEncontrada = getConfig().contains("tamanho-minimo-senha");
+        if (configAntigaEncontrada) {
             getConfig().set("minimo-caracteres-senha", PasswordUtils.DEFAULT_MIN_PASSWORD_LENGTH);
             getConfig().set("maximo-caracteres-senha", PasswordUtils.DEFAULT_MAX_PASSWORD_LENGTH);
+            getConfig().set("tamanho-minimo-senha", null);
+            getLogger().info("Configuracao antiga detectada: tamanho-minimo-senha foi substituida por minimo-caracteres-senha e maximo-caracteres-senha.");
         }
 
-        getConfig().set("tamanho-minimo-senha", null);
         getConfig().options().copyDefaults(true);
         saveConfig();
         reloadConfig();
