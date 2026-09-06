@@ -16,12 +16,14 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPipeline;
 import io.netty.handler.codec.MessageToByteEncoder;
 import io.netty.handler.codec.MessageToMessageDecoder;
+import org.bukkit.scheduler.BukkitTask;
 
 import javax.crypto.Cipher;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.net.InetSocketAddress;
 import java.security.GeneralSecurityException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -31,12 +33,13 @@ import java.util.logging.Logger;
 /** Desafio real para verificar contas premium em um servidor offline-mode. */
 public final class PremiumVerificationListener extends PacketListenerAbstract {
     private static final Logger LOGGER = Logger.getLogger("AuthSystem");
-    private static final long FALLBACK_MS = 10000L;
+    private static final long FALLBACK_MS = 15000L;
 
     private final PremiumLoginVerifier verifier;
     private final PremiumAuthenticator authenticator;
     private final com.authsystem.AuthSystem plugin;
     private final ConcurrentHashMap<String, PendingConnection> connections = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, BukkitTask> fallbackTasks = new ConcurrentHashMap<>();
 
     public PremiumVerificationListener(com.authsystem.AuthSystem plugin,
                                        PremiumLoginVerifier verifier,
@@ -75,15 +78,15 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
         user.sendPacket(new WrapperLoginServerEncryptionRequest(
                 "", verifier.getPublicKey(), verifyToken, true));
 
-        // Clientes cracked podem nao responder. Uma unica remocao atomica decide quem continua o login,
-        // evitando uma corrida com a resposta assincrona da verificacao na Mojang.
-        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+        BukkitTask fallback = plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
             PendingConnection current = connections.remove(key);
+            fallbackTasks.remove(key);
             if (current != null) {
                 verifier.remove(key);
                 resume(user, current.version(), current.username(), current.playerUuid());
             }
         }, FALLBACK_MS / 50L);
+        fallbackTasks.put(key, fallback);
     }
 
     private void handleEncryptionResponse(PacketReceiveEvent event) {
@@ -92,6 +95,11 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
         PendingConnection pending = connections.get(key);
         if (pending == null || !verifier.hasPending(key)) {
             return;
+        }
+
+        BukkitTask fallback = fallbackTasks.remove(key);
+        if (fallback != null) {
+            fallback.cancel();
         }
 
         WrapperLoginClientEncryptionResponse packet = new WrapperLoginClientEncryptionResponse(event);
@@ -105,9 +113,8 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
             return;
         }
 
-        // Valida o desafio antes de ativar o AES, impedindo que uma resposta RSA invalida altere a conexao.
         if (!verifier.validateToken(key, encryptedToken.get())) {
-            LOGGER.warning("Invalid premium verify token for " + pending.username());
+            LOGGER.warning("Token de verificacao premium invalido para " + pending.username());
             failAndResume(key, pending, user);
             return;
         }
@@ -119,33 +126,39 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
                 throw new GeneralSecurityException("Invalid AES secret length: " + sharedSecret.length);
             }
             enableEncryption(user.getChannel(), sharedSecret);
-        } catch (GeneralSecurityException e) {
-            LOGGER.warning("Could not enable premium encryption for " + pending.username() + ": " + e.getMessage());
+        } catch (GeneralSecurityException | IllegalArgumentException e) {
+            LOGGER.warning("Nao foi possivel ativar a criptografia premium para "
+                    + pending.username() + ": " + e.getMessage());
             failAndResume(key, pending, user);
             return;
         }
 
-        // A verificacao na Mojang e assincrona. A continuacao que toca na conexao do PacketEvents volta explicitamente para a thread principal do Bukkit.
         verifier.verify(key, sharedSecret).thenAccept(result ->
                 plugin.getServer().getScheduler().runTask(plugin, () -> {
                     if (!connections.remove(key, pending)) {
                         return;
                     }
-                    result.ifPresentOrElse(
-                            uuid -> {
-                                authenticator.markVerified(pending.username(), pending.ip(), uuid);
-                                LOGGER.info("Premium identity verified for " + pending.username());
-                                resume(user, pending.version(), pending.username(), pending.playerUuid());
-                            },
-                            () -> {
-                                LOGGER.info("Mojang session not confirmed for " + pending.username()
-                                        + "; continuing as cracked.");
-                                resume(user, pending.version(), pending.username(), pending.playerUuid());
-                            });
+                    UUID mojangUuid = result.orElse(null);
+                    if (mojangUuid != null && pending.playerUuid() != null
+                            && mojangUuid.equals(pending.playerUuid())) {
+                        authenticator.markVerified(pending.username(), pending.ip(), mojangUuid);
+                        LOGGER.info("Identidade premium verificada para " + pending.username());
+                    } else if (mojangUuid != null) {
+                        LOGGER.warning("UUID da Mojang nao corresponde ao UUID enviado pelo cliente para "
+                                + pending.username() + ". Conexao tratada como cracked.");
+                    } else {
+                        LOGGER.info("Sessao da Mojang nao confirmada para " + pending.username()
+                                + "; continuando como cracked.");
+                    }
+                    resume(user, pending.version(), pending.username(), pending.playerUuid());
                 }));
     }
 
     private void failAndResume(String key, PendingConnection pending, User user) {
+        BukkitTask fallback = fallbackTasks.remove(key);
+        if (fallback != null) {
+            fallback.cancel();
+        }
         if (!connections.remove(key, pending)) {
             return;
         }
@@ -157,7 +170,7 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
         try {
             user.receivePacketSilently(new WrapperLoginClientLoginStart(version, username, null, playerUuid));
         } catch (Exception e) {
-            LOGGER.warning("Could not resume login for " + username + ": " + e.getMessage());
+            LOGGER.warning("Nao foi possivel continuar o login de " + username + ": " + e.getMessage());
         }
     }
 
