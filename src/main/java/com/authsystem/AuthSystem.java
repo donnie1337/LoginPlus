@@ -58,6 +58,11 @@ public class AuthSystem extends JavaPlugin {
             changed = true;
         }
 
+        if (!getConfig().contains("tamanho-maximo-senha")) {
+            getConfig().set("tamanho-maximo-senha", 16);
+            changed = true;
+        }
+
         if (changed) {
             saveConfig();
         }
