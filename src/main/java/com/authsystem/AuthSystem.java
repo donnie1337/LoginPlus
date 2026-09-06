@@ -71,6 +71,7 @@ public class AuthSystem extends JavaPlugin {
         getConfig().addDefault("max-contas-por-ip", DEFAULT_MAX_ACCOUNTS_PER_IP);
         getConfig().addDefault("max-ips-por-conta", DEFAULT_MAX_IPS_PER_ACCOUNT);
         getConfig().addDefault("max-verificacoes-mojang-por-minuto", DEFAULT_MAX_MOJANG_CHECKS_PER_MINUTE);
+        getConfig().addDefault("bloquear-conexao-quando-limite-ip-atingido", true);
         getConfig().options().copyDefaults(true);
         saveConfig();
     }
@@ -92,8 +93,8 @@ public class AuthSystem extends JavaPlugin {
 
     @Override
     public void onDisable() {
-        if (playerDataManager != null) playerDataManager.save();
-        if (premiumAccountManager != null) premiumAccountManager.save();
+        if (playerDataManager != null) playerDataManager.shutdown();
+        if (premiumAccountManager != null) premiumAccountManager.shutdown();
         getLogger().info("AuthSystem desativado.");
     }
 
