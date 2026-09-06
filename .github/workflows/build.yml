@@ -77,3 +77,11 @@ jobs:
           fi
 
           echo 'Validacao do JAR concluida com sucesso.'
+
+      - name: Publicar JAR do plugin
+        uses: actions/upload-artifact@v4
+        with:
+          name: AuthSystem-1.1.2
+          path: target/*.jar
+          if-no-files-found: error
+          retention-days: 7
