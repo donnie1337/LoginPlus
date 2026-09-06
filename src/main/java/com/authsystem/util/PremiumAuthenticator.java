@@ -18,9 +18,19 @@ public final class PremiumAuthenticator {
         if (session == null || System.currentTimeMillis() - session.timestamp() > VERIFIED_TTL_MS) {
             return null;
         }
-        if (clientUuid != null && !session.mojangUuid().equals(clientUuid)) {
-            return null;
-        }
+
+        /*
+         * IMPORTANT: the server is running with online-mode=false.
+         * In this mode AsyncPlayerPreLoginEvent#getUniqueId() is the server's
+         * offline UUID, while Mojang's hasJoined response contains the real
+         * premium UUID. Comparing the two UUIDs would therefore reject every
+         * correctly authenticated premium player.
+         *
+         * The premium identity is already cryptographically verified by the
+         * Encryption Response + verify token + Mojang hasJoined challenge.
+         * The username and IP are also bound to this short-lived verification
+         * entry, so the offline UUID must not be used as a second check here.
+         */
         return session.mojangUuid();
     }
 
