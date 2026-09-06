@@ -10,7 +10,6 @@ import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
-import java.util.Arrays;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
@@ -22,6 +21,8 @@ import javax.crypto.Cipher;
 /** Realiza o desafio criptografico usado para verificar contas premium. */
 public final class PremiumLoginVerifier {
     private static final Logger LOGGER = Logger.getLogger("AuthSystem");
+    private static final int RSA_KEY_SIZE = 2048;
+    private static final int MAX_MOJANG_RESPONSE_BYTES = 16 * 1024;
     private final KeyPair keyPair;
     private final SecureRandom random = new SecureRandom();
     private final ConcurrentHashMap<String, Pending> pending = new ConcurrentHashMap<>();
@@ -29,7 +30,7 @@ public final class PremiumLoginVerifier {
     public PremiumLoginVerifier() {
         try {
             KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
-            generator.initialize(1024, random);
+            generator.initialize(RSA_KEY_SIZE, random);
             keyPair = generator.generateKeyPair();
         } catch (GeneralSecurityException e) {
             throw new IllegalStateException("RSA indisponivel", e);
@@ -116,8 +117,18 @@ public final class PremiumLoginVerifier {
                         + ". A conta sera tratada como cracked.");
                 return Optional.empty();
             }
+            int contentLength = connection.getContentLength();
+            if (contentLength > MAX_MOJANG_RESPONSE_BYTES) {
+                LOGGER.warning("Resposta da Mojang excedeu o limite permitido para " + username + ".");
+                return Optional.empty();
+            }
             try (InputStream input = connection.getInputStream()) {
-                String body = new String(input.readAllBytes(), StandardCharsets.UTF_8);
+                byte[] bodyBytes = input.readNBytes(MAX_MOJANG_RESPONSE_BYTES + 1);
+                if (bodyBytes.length > MAX_MOJANG_RESPONSE_BYTES) {
+                    LOGGER.warning("Resposta da Mojang excedeu o limite permitido para " + username + ".");
+                    return Optional.empty();
+                }
+                String body = new String(bodyBytes, StandardCharsets.UTF_8);
                 String marker = "\"id\"";
                 int markerStart = body.indexOf(marker);
                 if (markerStart < 0) {
