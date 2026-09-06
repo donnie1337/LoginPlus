@@ -62,10 +62,17 @@ public class RegisterCommand implements CommandExecutor {
                 : null;
         int limiteContas = plugin.getConfig().getInt("max-contas-por-ip", 1);
 
-        if (limiteContas > 0 && ip != null
-                && plugin.getPlayerDataManager().countAccountsForIp(ip) >= limiteContas) {
-            player.sendMessage(ChatColor.RED + "Este IP já atingiu o limite de " + limiteContas + " conta(s).");
-            return true;
+        // Se houver limite ativo, nunca permitimos cadastro sem conseguir identificar o IP.
+        if (limiteContas > 0) {
+            if (ip == null || ip.isBlank()) {
+                player.sendMessage(ChatColor.RED + "Não foi possível identificar seu IP. Tente entrar novamente.");
+                return true;
+            }
+
+            if (plugin.getPlayerDataManager().countAccountsForIp(ip) >= limiteContas) {
+                player.sendMessage(ChatColor.RED + "Este IP já atingiu o limite de " + limiteContas + " conta(s).");
+                return true;
+            }
         }
 
         plugin.getPlayerDataManager().register(player.getName(), senha, ip);
