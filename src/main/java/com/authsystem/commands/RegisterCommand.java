@@ -46,8 +46,15 @@ public class RegisterCommand implements CommandExecutor {
         String confirmar = args[1];
 
         int tamanhoMinimo = Math.max(plugin.getConfig().getInt("tamanho-minimo-senha", 7), 7);
+        int tamanhoMaximo = Math.min(plugin.getConfig().getInt("tamanho-maximo-senha", 16), 16);
+
         if (senha.length() < tamanhoMinimo) {
             player.sendMessage(ChatColor.RED + "Sua senha precisa ter pelo menos " + tamanhoMinimo + " caracteres.");
+            return true;
+        }
+
+        if (senha.length() > tamanhoMaximo) {
+            player.sendMessage(ChatColor.RED + "Sua senha pode ter no máximo " + tamanhoMaximo + " caracteres.");
             return true;
         }
 
