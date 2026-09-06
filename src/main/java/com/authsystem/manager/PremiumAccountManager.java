@@ -6,6 +6,8 @@ import org.bukkit.configuration.file.YamlConfiguration;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -16,6 +18,7 @@ public final class PremiumAccountManager {
     private final AuthSystem plugin;
     private final File file;
     private FileConfiguration data;
+    private boolean asyncSaveScheduled;
 
     public PremiumAccountManager(AuthSystem plugin) {
         this.plugin = plugin;
@@ -58,7 +61,7 @@ public final class PremiumAccountManager {
         }
         ips.add(ip);
         data.set(base + ".ips", ips);
-        save();
+        scheduleAsyncSave();
     }
 
     private List<String> getIps(UUID uuid) {
@@ -71,11 +74,30 @@ public final class PremiumAccountManager {
         return ips;
     }
 
+    /** Salva imediatamente; usado no desligamento para garantir que o estado em memoria seja persistido. */
     public synchronized void save() {
         try {
             data.save(file);
         } catch (IOException e) {
             plugin.getLogger().log(Level.SEVERE, "Nao foi possivel salvar premiumdata.yml", e);
         }
+    }
+
+    /** Evita I/O de disco na thread principal durante logins premium. */
+    private synchronized void scheduleAsyncSave() {
+        if (asyncSaveScheduled) return;
+        asyncSaveScheduled = true;
+        plugin.getServer().getScheduler().runTaskLaterAsynchronously(plugin, () -> {
+            final String snapshot;
+            synchronized (this) {
+                snapshot = data.saveToString();
+                asyncSaveScheduled = false;
+            }
+            try {
+                Files.writeString(file.toPath(), snapshot, StandardCharsets.UTF_8);
+            } catch (IOException e) {
+                plugin.getLogger().log(Level.SEVERE, "Nao foi possivel salvar premiumdata.yml", e);
+            }
+        }, 1L);
     }
 }
