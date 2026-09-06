@@ -89,7 +89,8 @@ public class RegisterCommand implements CommandExecutor {
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             try {
                 String salt = PasswordUtils.generateSalt();
-                String hash = PasswordUtils.hash(senha, salt, PasswordUtils.CURRENT_ITERATIONS);
+                String hash = PasswordUtils.hash(senha, salt, plugin.getPasswordIterations());
+                int iterations = plugin.getPasswordIterations();
 
                 Bukkit.getScheduler().runTask(plugin, () -> {
                     try {
@@ -107,7 +108,7 @@ public class RegisterCommand implements CommandExecutor {
                         }
 
                         boolean registrado = plugin.getPlayerDataManager().registerHashed(
-                                username, salt, hash, PasswordUtils.CURRENT_ITERATIONS, ip, playerId);
+                                username, salt, hash, iterations, ip, playerId);
                         if (!registrado) {
                             plugin.getSessionManager().unregisterAuthenticatedIp(ip, playerId);
                             player.sendMessage(ChatColor.RED + "Não foi possível concluir o registro. Tente novamente.");
