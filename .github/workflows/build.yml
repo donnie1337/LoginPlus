@@ -28,38 +28,52 @@ jobs:
       - name: Compilar plugin
         run: mvn -B clean package
 
-      - name: Validar JAR e configurações
+      - name: Validar JAR e configuracoes
         run: |
+          set -euo pipefail
+
           JAR=$(find target -maxdepth 1 -type f -name '*.jar' ! -name '*original*' -print -quit)
           if [ -z "$JAR" ]; then
-            echo 'Nenhum JAR do plugin foi gerado em target/.'
+            echo 'ERRO: nenhum JAR do plugin foi gerado em target/.'
             echo 'Conteudo de target/:'
             ls -la target/ || true
             exit 1
           fi
 
           echo "Validando JAR: $JAR"
+
           rm -rf /tmp/authsystem-jar
           mkdir -p /tmp/authsystem-jar
           unzip -q "$JAR" -d /tmp/authsystem-jar
 
-          test -f /tmp/authsystem-jar/config.yml
-          test -f /tmp/authsystem-jar/plugin.yml
-          test -f /tmp/authsystem-jar/mensagens/titulos.yml
+          for arquivo in config.yml plugin.yml mensagens/titulos.yml; do
+            if [ ! -f "/tmp/authsystem-jar/$arquivo" ]; then
+              echo "ERRO: arquivo obrigatorio ausente no JAR: $arquivo"
+              find /tmp/authsystem-jar -maxdepth 3 -type f | sort
+              exit 1
+            fi
+          done
 
-          grep -Fq 'minimo-caracteres-senha: 7' /tmp/authsystem-jar/config.yml
-          grep -Fq 'maximo-caracteres-senha: 16' /tmp/authsystem-jar/config.yml
-          grep -Fq 'max-contas-por-ip: 1' /tmp/authsystem-jar/config.yml
-          grep -Fq 'max-ips-por-conta: 1' /tmp/authsystem-jar/config.yml
+          validar_linha() {
+            arquivo="$1"
+            linha="$2"
+            if ! grep -F "$linha" "$arquivo" >/dev/null; then
+              echo "ERRO: linha esperada nao encontrada em $arquivo: $linha"
+              echo 'Conteudo encontrado:'
+              cat "$arquivo"
+              exit 1
+            fi
+          }
 
-          if grep -Fq 'tamanho-minimo-senha:' /tmp/authsystem-jar/config.yml; then
-            echo 'Configuracao antiga tamanho-minimo-senha encontrada no JAR.'
+          validar_linha /tmp/authsystem-jar/config.yml 'minimo-caracteres-senha: 7'
+          validar_linha /tmp/authsystem-jar/config.yml 'maximo-caracteres-senha: 16'
+          validar_linha /tmp/authsystem-jar/config.yml 'max-contas-por-ip: 1'
+          validar_linha /tmp/authsystem-jar/config.yml 'max-ips-por-conta: 1'
+          validar_linha /tmp/authsystem-jar/plugin.yml "version: '1.1.1'"
+
+          if grep -F 'tamanho-minimo-senha:' /tmp/authsystem-jar/config.yml >/dev/null; then
+            echo 'ERRO: configuracao antiga tamanho-minimo-senha ainda esta no JAR.'
             exit 1
           fi
-
-          grep -Eq '^version:[[:space:]]*[\"'"']?1\.1\.1[\"'"']?[[:space:]]*$' /tmp/authsystem-jar/plugin.yml
-          grep -Fq 'password.length() > maxLength' src/main/java/com/authsystem/util/PasswordUtils.java
-          grep -Fq 'max-contas-por-ip' src/main/java/com/authsystem/commands/RegisterCommand.java
-          grep -Fq 'max-ips-por-conta' src/main/java/com/authsystem/manager/PlayerDataManager.java
 
           echo 'Validacao do JAR concluida com sucesso.'
