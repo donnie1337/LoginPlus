@@ -46,10 +46,11 @@ public class AuthListener implements Listener {
         Player player = event.getPlayer();
         String ip = IpResolver.getPlayerIp(player);
         boolean registrado = plugin.getPlayerDataManager().isRegistered(player.getName());
-        String verificacaoPremium = plugin.getPremiumAuthenticator().consumeVerified(player.getName(), ip);
+        String verificacaoPremium = null;
 
-        // Uma conta criada pelo modo pirata tem prioridade sobre o login premium automatico.
-        // Isso permite que o mesmo nickname seja usado nos dois modos sem substituir a senha cadastrada.
+        // O cadastro local tem prioridade. So consumimos uma verificacao premium quando nao existe conta local.
+        if (!registrado) verificacaoPremium = plugin.getPremiumAuthenticator().consumeVerified(player.getName(), ip);
+
         if (!registrado && verificacaoPremium != null) {
             int limiteIps = plugin.getConfig().getInt("max-ips-por-conta", 1);
             if (!plugin.getPremiumAccountManager().canUseIp(player.getUniqueId(), ip, limiteIps)) {
