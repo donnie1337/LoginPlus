@@ -14,7 +14,6 @@ import java.util.Deque;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
 
 public class RegisterCommand implements CommandExecutor {
     private final AuthSystem plugin;
@@ -22,7 +21,6 @@ public class RegisterCommand implements CommandExecutor {
     private final ConcurrentHashMap<String, Deque<Long>> tentativasPorIp = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Deque<Long>> tentativasPorNome = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Long> ultimoRegistroPorIp = new ConcurrentHashMap<>();
-    private final AtomicInteger processamentosAtivos = new AtomicInteger();
 
     public RegisterCommand(AuthSystem plugin) { this.plugin = plugin; }
 
@@ -80,9 +78,9 @@ public class RegisterCommand implements CommandExecutor {
         }
 
         int maxProcessamentos = Math.max(1, plugin.getConfig().getInt("registro.max-processamentos-simultaneos", 2));
-        if (!reservarProcessamento(maxProcessamentos)) {
+        if (!plugin.getHashProcessingLimiter().tryAcquire(maxProcessamentos)) {
             registrosEmAndamento.remove(playerId);
-            player.sendMessage(ChatColor.RED + "O servidor está processando muitos registros no momento. Aguarde alguns segundos e tente novamente.");
+            player.sendMessage(ChatColor.RED + "O servidor está processando muitas senhas no momento. Aguarde alguns segundos e tente novamente.");
             return true;
         }
 
@@ -134,7 +132,7 @@ public class RegisterCommand implements CommandExecutor {
                     // O plugin pode estar sendo desligado; nesse caso não há tarefa Bukkit a executar.
                 }
             } finally {
-                processamentosAtivos.decrementAndGet();
+                plugin.getHashProcessingLimiter().release();
             }
         });
 
@@ -179,11 +177,24 @@ public class RegisterCommand implements CommandExecutor {
         }
     }
 
-    private boolean reservarProcessamento(int limite) {
-        while (true) {
-            int atual = processamentosAtivos.get();
-            if (atual >= limite) return false;
-            if (processamentosAtivos.compareAndSet(atual, atual + 1)) return true;
-        }
+    public void cleanupExpired() {
+        long agora = System.currentTimeMillis();
+        long janelaMs = Math.max(1L, plugin.getConfig().getLong("registro.janela-minutos", 5)) * 60_000L;
+        tentativasPorIp.entrySet().removeIf(entry -> {
+            Deque<Long> fila = entry.getValue();
+            synchronized (fila) {
+                while (!fila.isEmpty() && agora - fila.peekFirst() >= janelaMs) fila.removeFirst();
+                return fila.isEmpty();
+            }
+        });
+        tentativasPorNome.entrySet().removeIf(entry -> {
+            Deque<Long> fila = entry.getValue();
+            synchronized (fila) {
+                while (!fila.isEmpty() && agora - fila.peekFirst() >= janelaMs) fila.removeFirst();
+                return fila.isEmpty();
+            }
+        });
+        long cooldownMs = Math.max(0L, plugin.getConfig().getLong("registro.cooldown-segundos", 30)) * 1000L;
+        ultimoRegistroPorIp.entrySet().removeIf(entry -> cooldownMs == 0 || agora - entry.getValue() >= cooldownMs);
     }
 }
