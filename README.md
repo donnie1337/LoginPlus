@@ -212,16 +212,6 @@ login: "&eFaça o login"
 
 O PacketEvents deve estar instalado no servidor em `plugins/`.
 
-## Configuração do servidor
-
-No `server.properties`, a configuração deve ser:
-
-```properties
-online-mode=false
-```
-
-Essa configuração permite que contas Premium e Cracked utilizem o mesmo servidor, enquanto o AuthSystem realiza a verificação adicional das contas Premium.
-
 ## Segurança
 
 O AuthSystem foi desenvolvido com foco na proteção do processo de autenticação.
