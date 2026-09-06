@@ -1,18 +1,66 @@
-# Configuracoes do AuthSystem
+# ============================================================
+# CONFIGURACOES DO AUTHSYSTEM
+#
+# Edite os valores abaixo conforme o servidor.
+# Depois de alterar o arquivo no servidor, reinicie o plugin/servidor
+# para garantir que as novas configuracoes sejam carregadas.
+# ============================================================
 
-# Tempo (em segundos) que o jogador tem para digitar /login ou /registro
-# antes de ser expulso automaticamente do servidor.
+# ------------------------------------------------------------
+# AUTENTICACAO
+# ------------------------------------------------------------
+
+# Tempo, em segundos, que o jogador tem para fazer /login ou /registro.
+# Ao atingir esse tempo sem autenticar, o jogador e expulso.
 tempo-limite-login-segundos: 60
 
-# Numero de vezes que o jogador PODE errar a senha no /login.
-# Ao errar mais que isso (ex.: 3 -> expulso no 4o erro), ele e expulso
-# e o IP fica temporariamente bloqueado (veja a opcao abaixo).
+# Quantidade maxima de erros de senha permitidos no /login.
+# Exemplo: 3 permite 3 erros; no 4o erro o jogador e expulso
+# e o IP entra no bloqueio temporario configurado abaixo.
 max-tentativas-login: 3
 
-# Quanto tempo (em minutos) o IP fica impedido de tentar logar de novo
-# depois de exceder o limite acima. Isso e o que impede a pessoa de so
-# desconectar e reconectar para "resetar" as tentativas (bypass).
+# Tempo, em minutos, que o IP fica bloqueado depois de ultrapassar
+# o limite de tentativas de login.
 bloqueio-apos-exceder-tentativas-minutos: 5
 
-# Tamanho minimo exigido para a senha no /registro.
-tamanho-minimo-senha: 4
+# ------------------------------------------------------------
+# SENHA
+# ------------------------------------------------------------
+
+# Tamanho MINIMO da senha.
+# Exemplo: 7 exige pelo menos 7 caracteres.
+# A senha aceita somente letras A-Z/a-z e numeros 0-9.
+minimo-caracteres-senha: 7
+
+# Tamanho MAXIMO da senha.
+# Exemplo: 16 impede senhas com mais de 16 caracteres.
+maximo-caracteres-senha: 16
+
+# ------------------------------------------------------------
+# LIMITE DE JOGADORES POR IP
+# ------------------------------------------------------------
+
+# Quantas contas podem ficar AUTENTICADAS/JOGANDO ao mesmo tempo
+# usando o mesmo IP.
+#
+# 1 = somente uma conta jogando por IP.
+# 2 = ate duas contas jogando pelo mesmo IP.
+# 3 = ate tres contas jogando pelo mesmo IP.
+# 0 = sem limite.
+#
+# IMPORTANTE: este limite NAO bloqueia o cadastro.
+# Uma segunda conta pode ser cadastrada, mas nao podera jogar enquanto
+# todas as vagas daquele IP estiverem ocupadas.
+max-contas-por-ip: 1
+
+# ------------------------------------------------------------
+# LIMITE DE IPs POR CONTA
+# ------------------------------------------------------------
+
+# Quantos IPs diferentes podem usar a mesma conta ao longo do tempo.
+#
+# 1 = a conta fica vinculada ao primeiro IP utilizado.
+# 2 = a conta pode usar ate dois IPs diferentes.
+# 3 = a conta pode usar ate tres IPs diferentes.
+# 0 = sem limite.
+max-ips-por-conta: 1
