@@ -41,6 +41,10 @@ public final class PasswordUtils {
             return "Sua senha pode ter no maximo " + MAX_PASSWORD_LENGTH + " caracteres.";
         }
 
+        if (!password.matches("^[A-Za-z0-9]+$")) {
+            return "Sua senha pode conter apenas letras e numeros, sem espacos ou caracteres especiais.";
+        }
+
         if (!password.matches(".*[A-Za-z].*") || !password.matches(".*[0-9].*")) {
             return "Sua senha precisa conter pelo menos uma letra e um numero.";
         }
