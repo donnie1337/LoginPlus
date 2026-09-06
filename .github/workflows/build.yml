@@ -34,5 +34,11 @@ jobs:
           unzip -l target/AuthSystem.jar | grep -q 'config.yml'
           unzip -l target/AuthSystem.jar | grep -q 'plugin.yml'
           unzip -l target/AuthSystem.jar | grep -q 'mensagens/titulos.yml'
+          unzip -p target/AuthSystem.jar config.yml | grep -Fq 'minimo-caracteres-senha: 7'
+          unzip -p target/AuthSystem.jar config.yml | grep -Fq 'maximo-caracteres-senha: 16'
           unzip -p target/AuthSystem.jar config.yml | grep -Fq 'max-contas-por-ip: 1'
           unzip -p target/AuthSystem.jar config.yml | grep -Fq 'max-ips-por-conta: 1'
+          if unzip -p target/AuthSystem.jar config.yml | grep -Fq 'tamanho-minimo-senha:'; then
+            echo 'Configuracao antiga tamanho-minimo-senha encontrada no JAR.'
+            exit 1
+          fi
