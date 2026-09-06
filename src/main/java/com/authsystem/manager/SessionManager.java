@@ -14,9 +14,13 @@ public class SessionManager {
     private final Set<UUID> premium = ConcurrentHashMap.newKeySet();
     private final Map<UUID, BukkitTask> timeoutTasks = new ConcurrentHashMap<>();
     private final Map<String, Set<UUID>> contasAutenticadasPorIp = new ConcurrentHashMap<>();
+    private final Map<UUID, String> ipAutenticadoPorConta = new ConcurrentHashMap<>();
 
     public boolean isAuthenticated(Player player) { return authenticated.contains(player.getUniqueId()); }
-    public void setAuthenticated(Player player, boolean value) { if (value) authenticated.add(player.getUniqueId()); else authenticated.remove(player.getUniqueId()); }
+    public void setAuthenticated(Player player, boolean value) {
+        if (value) authenticated.add(player.getUniqueId());
+        else authenticated.remove(player.getUniqueId());
+    }
     public boolean isPremium(Player player) { return premium.contains(player.getUniqueId()); }
     public void markPremium(UUID uuid) { premium.add(uuid); }
     public void setTimeoutTask(Player player, BukkitTask task) { cancelTimeout(player); timeoutTasks.put(player.getUniqueId(), task); }
@@ -25,19 +29,30 @@ public class SessionManager {
     /** Reserva atomicamente uma vaga de autenticacao para o IP. */
     public synchronized boolean tryRegisterAuthenticatedIp(String ip, UUID uuid, int limite) {
         if (ip == null || ip.isBlank() || limite <= 0) return true;
+        String ipAtual = ipAutenticadoPorConta.get(uuid);
+        if (ip.equals(ipAtual)) return true;
+        if (ipAtual != null) unregisterAuthenticatedIp(ipAtual, uuid);
         Set<UUID> contas = contasAutenticadasPorIp.computeIfAbsent(ip, chave -> ConcurrentHashMap.newKeySet());
-        if (contas.contains(uuid)) return true;
+        if (contas.contains(uuid)) {
+            ipAutenticadoPorConta.put(uuid, ip);
+            return true;
+        }
         if (contas.size() >= limite) return false;
         contas.add(uuid);
+        ipAutenticadoPorConta.put(uuid, ip);
         return true;
     }
 
     public synchronized void unregisterAuthenticatedIp(String ip, UUID uuid) {
+        if (uuid == null) return;
+        if (ip == null || ip.isBlank()) ip = ipAutenticadoPorConta.get(uuid);
         if (ip == null || ip.isBlank()) return;
         Set<UUID> contas = contasAutenticadasPorIp.get(ip);
-        if (contas == null) return;
-        contas.remove(uuid);
-        if (contas.isEmpty()) contasAutenticadasPorIp.remove(ip, contas);
+        if (contas != null) {
+            contas.remove(uuid);
+            if (contas.isEmpty()) contasAutenticadasPorIp.remove(ip, contas);
+        }
+        ipAutenticadoPorConta.remove(uuid, ip);
     }
 
     public int countAuthenticatedFromIp(String ip) {
@@ -50,7 +65,6 @@ public class SessionManager {
         authenticated.remove(uuid);
         premium.remove(uuid);
         cancelTimeout(player);
-        String ip = player.getAddress() == null || player.getAddress().getAddress() == null ? null : player.getAddress().getAddress().getHostAddress();
-        unregisterAuthenticatedIp(ip, uuid);
+        unregisterAuthenticatedIp(ipAutenticadoPorConta.get(uuid), uuid);
     }
 }
