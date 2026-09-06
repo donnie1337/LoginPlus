@@ -45,7 +45,12 @@ public class AuthListener implements Listener {
     public void onJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
         String ip = IpResolver.getPlayerIp(player);
-        if (plugin.getPremiumAuthenticator().consumeVerified(player.getName(), ip) != null) {
+        boolean registrado = plugin.getPlayerDataManager().isRegistered(player.getName());
+        String verificacaoPremium = plugin.getPremiumAuthenticator().consumeVerified(player.getName(), ip);
+
+        // Uma conta criada pelo modo pirata tem prioridade sobre o login premium automatico.
+        // Isso permite que o mesmo nickname seja usado nos dois modos sem substituir a senha cadastrada.
+        if (!registrado && verificacaoPremium != null) {
             int limiteIps = plugin.getConfig().getInt("max-ips-por-conta", 1);
             if (!plugin.getPremiumAccountManager().canUseIp(player.getUniqueId(), ip, limiteIps)) {
                 player.kickPlayer(ChatColor.RED + "Esta conta original já atingiu o limite de " + limiteIps + " IP(s) permitido(s).");
@@ -64,10 +69,9 @@ public class AuthListener implements Listener {
             return;
         }
 
-        boolean registrado = plugin.getPlayerDataManager().isRegistered(player.getName());
         if (registrado) {
             enviarTitleAutenticacao(player, plugin.getMessagesManager().getTitleBemVindo(), plugin.getMessagesManager().getTitleLogin());
-            player.sendMessage(ChatColor.YELLOW + "Bem-vindo de volta! Use /login <senha> para entrar.");
+            player.sendMessage(ChatColor.YELLOW + "Esta conta possui registro. Use /login <senha> para entrar.");
         } else {
             enviarTitleAutenticacao(player, plugin.getMessagesManager().getTitleBemVindo(), plugin.getMessagesManager().getTitleRegistro());
             player.sendMessage(ChatColor.YELLOW + "Bem-vindo! Use /registro <senha> <confirmar-senha> para criar sua conta.");
