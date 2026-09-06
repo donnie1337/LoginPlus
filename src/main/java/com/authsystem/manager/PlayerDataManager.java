@@ -7,6 +7,8 @@ import org.bukkit.configuration.file.YamlConfiguration;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -21,6 +23,7 @@ public class PlayerDataManager {
     private final AuthSystem plugin;
     private final File file;
     private FileConfiguration data;
+    private boolean asyncSaveScheduled;
 
     public PlayerDataManager(AuthSystem plugin) {
         this.plugin = plugin;
@@ -37,9 +40,31 @@ public class PlayerDataManager {
         data = YamlConfiguration.loadConfiguration(file);
     }
 
+    /** Salva imediatamente. Usado no desligamento para garantir durabilidade dos dados. */
     public synchronized void save() {
         try { data.save(file); }
         catch (IOException e) { plugin.getLogger().log(Level.SEVERE, "Nao foi possivel salvar playerdata.yml", e); }
+    }
+
+    /**
+     * Agenda uma persistencia sem bloquear a thread principal com I/O de disco.
+     * O snapshot YAML e criado sob lock e a escrita do arquivo ocorre em async.
+     */
+    private synchronized void scheduleAsyncSave() {
+        if (asyncSaveScheduled) return;
+        asyncSaveScheduled = true;
+        plugin.getServer().getScheduler().runTaskLaterAsynchronously(plugin, () -> {
+            final String snapshot;
+            synchronized (this) {
+                snapshot = data.saveToString();
+                asyncSaveScheduled = false;
+            }
+            try {
+                Files.writeString(file.toPath(), snapshot, StandardCharsets.UTF_8);
+            } catch (IOException e) {
+                plugin.getLogger().log(Level.SEVERE, "Nao foi possivel salvar playerdata.yml", e);
+            }
+        }, 1L);
     }
 
     private String key(String username) { return "players." + username.toLowerCase(); }
@@ -60,7 +85,7 @@ public class PlayerDataManager {
             data.set(base + ".ips", ips);
         }
         if (!data.contains(base + ".ip")) data.set(base + ".ip", ip);
-        save();
+        scheduleAsyncSave();
     }
 
     private List<String> getIps(String username) {
@@ -89,7 +114,7 @@ public class PlayerDataManager {
         data.set(base + ".ip", ip);
         data.set(base + ".ips", List.of(ip));
         data.set(base + ".registrado-em", FORMATO_REGISTRO.format(LocalDateTime.now()));
-        save();
+        scheduleAsyncSave();
         return true;
     }
 
@@ -112,6 +137,6 @@ public class PlayerDataManager {
         data.set(base + ".salt", salt);
         data.set(base + ".senha", PasswordUtils.hash(password, salt));
         data.set(base + ".iteracoes", PasswordUtils.CURRENT_ITERATIONS);
-        save();
+        scheduleAsyncSave();
     }
 }
