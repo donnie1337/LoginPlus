@@ -47,8 +47,19 @@ public class AuthSystem extends JavaPlugin {
     }
 
     private void ensureConfigDefaults() {
+        boolean alterado = false;
+
         if (!getConfig().contains("max-contas-por-ip")) {
             getConfig().set("max-contas-por-ip", 1);
+            alterado = true;
+        }
+
+        if (!getConfig().contains("max-ips-por-conta")) {
+            getConfig().set("max-ips-por-conta", 1);
+            alterado = true;
+        }
+
+        if (alterado) {
             saveConfig();
         }
     }
