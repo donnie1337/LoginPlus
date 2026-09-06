@@ -14,11 +14,38 @@ import java.util.Base64;
  */
 public final class PasswordUtils {
 
+    public static final int MIN_PASSWORD_LENGTH = 7;
+    public static final int MAX_PASSWORD_LENGTH = 16;
+
     private static final int ITERATIONS = 65536;
     private static final int KEY_LENGTH_BITS = 256;
     private static final SecureRandom RANDOM = new SecureRandom();
 
     private PasswordUtils() {
+    }
+
+    /**
+     * Valida todas as regras de uma senha de cadastro.
+     * Retorna uma mensagem pronta quando houver erro, ou null quando a senha for valida.
+     */
+    public static String validatePassword(String password) {
+        if (password == null) {
+            return "Senha invalida.";
+        }
+
+        if (password.length() < MIN_PASSWORD_LENGTH) {
+            return "Sua senha precisa ter pelo menos " + MIN_PASSWORD_LENGTH + " caracteres.";
+        }
+
+        if (password.length() > MAX_PASSWORD_LENGTH) {
+            return "Sua senha pode ter no maximo " + MAX_PASSWORD_LENGTH + " caracteres.";
+        }
+
+        if (!password.matches(".*[A-Za-z].*") || !password.matches(".*[0-9].*")) {
+            return "Sua senha precisa conter pelo menos uma letra e um numero.";
+        }
+
+        return null;
     }
 
     public static String generateSalt() {
