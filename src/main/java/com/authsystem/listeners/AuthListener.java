@@ -1,7 +1,6 @@
 package com.authsystem.listeners;
 
 import com.authsystem.AuthSystem;
-import com.authsystem.util.PremiumAuthenticator;
 import org.bukkit.ChatColor;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -30,13 +29,10 @@ import java.util.concurrent.ConcurrentHashMap;
 public class AuthListener implements Listener {
     private final AuthSystem plugin;
     private final ConcurrentHashMap<UUID, Boolean> preLoginPremiumResult = new ConcurrentHashMap<>();
-
     private static final List<String> COMANDOS_PERMITIDOS =
             List.of("/login", "/registro", "/register", "/cadastrar");
 
-    public AuthListener(AuthSystem plugin) {
-        this.plugin = plugin;
-    }
+    public AuthListener(AuthSystem plugin) { this.plugin = plugin; }
 
     @EventHandler
     public void onPreLogin(AsyncPlayerPreLoginEvent event) {
@@ -49,11 +45,11 @@ public class AuthListener implements Listener {
             return;
         }
 
-        // CRITICAL: never call PremiumChecker here. A Mojang name lookup does not prove
-        // ownership of the account. Only the cryptographic PacketEvents handshake can do that.
-        UUID verifiedUuid = plugin.getPremiumAuthenticator().consumeVerified(event.getName());
-        boolean premium = verifiedUuid != null;
-        preLoginPremiumResult.put(event.getUniqueId(), premium);
+        // A existência do nick na Mojang nunca é suficiente para liberar o jogador.
+        // Este resultado só existe quando PremiumVerificationListener completou o handshake.
+        UUID verifiedUuid = plugin.getPremiumAuthenticator().consumeVerified(
+                event.getName(), ip, event.getUniqueId());
+        preLoginPremiumResult.put(event.getUniqueId(), verifiedUuid != null);
     }
 
     @EventHandler
@@ -89,13 +85,15 @@ public class AuthListener implements Listener {
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
         plugin.getSessionManager().clear(event.getPlayer());
-        plugin.getPremiumAuthenticator().clear(event.getPlayer().getName());
+        plugin.getPremiumAuthenticator().clear(event.getPlayer().getName(),
+                event.getPlayer().getAddress() == null ? null : event.getPlayer().getAddress().getAddress().getHostAddress());
     }
 
     @EventHandler
     public void onKick(PlayerKickEvent event) {
         plugin.getSessionManager().clear(event.getPlayer());
-        plugin.getPremiumAuthenticator().clear(event.getPlayer().getName());
+        plugin.getPremiumAuthenticator().clear(event.getPlayer().getName(),
+                event.getPlayer().getAddress() == null ? null : event.getPlayer().getAddress().getAddress().getHostAddress());
     }
 
     private boolean precisaBloquear(Player player) {
@@ -141,22 +139,11 @@ public class AuthListener implements Listener {
     }
 
     @EventHandler
-    public void onBlockBreak(BlockBreakEvent event) {
-        if (precisaBloquear(event.getPlayer())) event.setCancelled(true);
-    }
-
+    public void onBlockBreak(BlockBreakEvent event) { if (precisaBloquear(event.getPlayer())) event.setCancelled(true); }
     @EventHandler
-    public void onBlockPlace(BlockPlaceEvent event) {
-        if (precisaBloquear(event.getPlayer())) event.setCancelled(true);
-    }
-
+    public void onBlockPlace(BlockPlaceEvent event) { if (precisaBloquear(event.getPlayer())) event.setCancelled(true); }
     @EventHandler
-    public void onInteract(PlayerInteractEvent event) {
-        if (precisaBloquear(event.getPlayer())) event.setCancelled(true);
-    }
-
+    public void onInteract(PlayerInteractEvent event) { if (precisaBloquear(event.getPlayer())) event.setCancelled(true); }
     @EventHandler
-    public void onDropItem(PlayerDropItemEvent event) {
-        if (precisaBloquear(event.getPlayer())) event.setCancelled(true);
-    }
+    public void onDropItem(PlayerDropItemEvent event) { if (precisaBloquear(event.getPlayer())) event.setCancelled(true); }
 }
