@@ -26,19 +26,17 @@ public class SessionManager {
     public void setTimeoutTask(Player player, BukkitTask task) { cancelTimeout(player); timeoutTasks.put(player.getUniqueId(), task); }
     public void cancelTimeout(Player player) { BukkitTask task = timeoutTasks.remove(player.getUniqueId()); if (task != null) task.cancel(); }
 
-    /** Reserva atomicamente uma vaga de autenticacao para o IP. */
+    /** Reserva atomicamente uma vaga de autenticacao para o IP sem destruir a reserva atual em caso de recusa. */
     public synchronized boolean tryRegisterAuthenticatedIp(String ip, UUID uuid, int limite) {
-        if (ip == null || ip.isBlank() || limite <= 0) return true;
+        if (ip == null || ip.isBlank() || uuid == null || limite <= 0) return true;
         String ipAtual = ipAutenticadoPorConta.get(uuid);
         if (ip.equals(ipAtual)) return true;
+
+        Set<UUID> novoConjunto = contasAutenticadasPorIp.computeIfAbsent(ip, chave -> ConcurrentHashMap.newKeySet());
+        if (!novoConjunto.contains(uuid) && novoConjunto.size() >= limite) return false;
+
         if (ipAtual != null) unregisterAuthenticatedIp(ipAtual, uuid);
-        Set<UUID> contas = contasAutenticadasPorIp.computeIfAbsent(ip, chave -> ConcurrentHashMap.newKeySet());
-        if (contas.contains(uuid)) {
-            ipAutenticadoPorConta.put(uuid, ip);
-            return true;
-        }
-        if (contas.size() >= limite) return false;
-        contas.add(uuid);
+        novoConjunto.add(uuid);
         ipAutenticadoPorConta.put(uuid, ip);
         return true;
     }
