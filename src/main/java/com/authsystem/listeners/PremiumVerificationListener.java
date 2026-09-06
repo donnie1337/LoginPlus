@@ -1,6 +1,6 @@
 package com.authsystem.listeners;
 
-import com.authsystem.util.IpResolver;
+import com.authsystem.AuthSystem;
 import com.authsystem.util.PremiumAuthenticator;
 import com.authsystem.util.PremiumLoginVerifier;
 import com.github.retrooper.packetevents.event.PacketListenerAbstract;
@@ -36,11 +36,11 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
     private static final long FALLBACK_MS = 15000L;
     private final PremiumLoginVerifier verifier;
     private final PremiumAuthenticator authenticator;
-    private final com.authsystem.AuthSystem plugin;
+    private final AuthSystem plugin;
     private final ConcurrentHashMap<String, PendingConnection> connections = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, BukkitTask> fallbackTasks = new ConcurrentHashMap<>();
 
-    public PremiumVerificationListener(com.authsystem.AuthSystem plugin, PremiumLoginVerifier verifier, PremiumAuthenticator authenticator) {
+    public PremiumVerificationListener(AuthSystem plugin, PremiumLoginVerifier verifier, PremiumAuthenticator authenticator) {
         this.plugin = plugin;
         this.verifier = verifier;
         this.authenticator = authenticator;
@@ -60,8 +60,9 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
         User user = event.getUser();
         ClientVersion version = user.getClientVersion();
         UUID playerUuid = packet.getPlayerUUID().orElse(null);
-        String ip = IpResolver.getUserIp(user);
-        if (ip == null) {
+        InetSocketAddress address = user.getAddress();
+        String ip = address != null && address.getAddress() != null ? address.getAddress().getHostAddress() : null;
+        if (ip == null || ip.isBlank()) {
             LOGGER.warning("Nao foi possivel identificar o IP durante o handshake premium de " + username + ". Continuando como cracked.");
             event.setCancelled(true);
             resume(user, version, username, playerUuid);
@@ -91,7 +92,6 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
         }
 
         PendingConnection pending = new PendingConnection(username, version, playerUuid, ip);
-        // Nunca sobrescreva o estado de outra tentativa para a mesma conexao.
         if (connections.putIfAbsent(key, pending) != null) {
             verifier.remove(key);
             LOGGER.warning("Reserva de conexao premium duplicada detectada para " + username + " (" + key + ").");
