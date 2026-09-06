@@ -22,6 +22,7 @@ public class RegisterCommand implements CommandExecutor {
     private final ConcurrentHashMap<String, Deque<Long>> tentativasPorIp = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Deque<Long>> tentativasPorNome = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Long> ultimoRegistroPorIp = new ConcurrentHashMap<>();
+    private final Object rateLimitLock = new Object();
 
     public RegisterCommand(AuthSystem plugin) { this.plugin = plugin; }
 
@@ -145,67 +146,68 @@ public class RegisterCommand implements CommandExecutor {
         int maxTentativas = Math.max(0, plugin.getConfig().getInt("registro.max-tentativas-por-ip", 3));
         long janelaMs = Math.max(1L, plugin.getConfig().getLong("registro.janela-minutos", 5)) * 60_000L;
         long agora = System.currentTimeMillis();
-
-        if (maxTentativas > 0) {
-            String chaveNome = username.toLowerCase(Locale.ROOT);
-            if (!podeRegistrar(tentativasPorIp, ip, agora, janelaMs, maxTentativas)
-                    || !podeRegistrar(tentativasPorNome, chaveNome, agora, janelaMs, maxTentativas)) {
-                player.sendMessage(ChatColor.RED + "Muitas tentativas de registro. Aguarde alguns minutos antes de tentar novamente.");
-                return false;
-            }
-            registrarTentativa(tentativasPorIp, ip, agora, janelaMs);
-            registrarTentativa(tentativasPorNome, chaveNome, agora, janelaMs);
-        }
-
         long cooldownMs = Math.max(0L, plugin.getConfig().getLong("registro.cooldown-segundos", 30)) * 1000L;
-        if (cooldownMs > 0) {
-            Long ultimo = ultimoRegistroPorIp.get(ip);
-            if (ultimo != null && agora - ultimo < cooldownMs) {
-                long restante = Math.max(1L, (cooldownMs - (agora - ultimo) + 999L) / 1000L);
-                player.sendMessage(ChatColor.RED + "Aguarde " + restante + " segundo(s) antes de tentar registrar novamente.");
-                return false;
+        String chaveNome = username.toLowerCase(Locale.ROOT);
+
+        synchronized (rateLimitLock) {
+            if (maxTentativas > 0) {
+                Deque<Long> filaIp = filaAtual(tentativasPorIp, ip, agora, janelaMs);
+                Deque<Long> filaNome = filaAtual(tentativasPorNome, chaveNome, agora, janelaMs);
+                if (filaIp.size() >= maxTentativas || filaNome.size() >= maxTentativas) {
+                    player.sendMessage(ChatColor.RED + "Muitas tentativas de registro. Aguarde alguns minutos antes de tentar novamente.");
+                    return false;
+                }
+
+                filaIp.addLast(agora);
+                filaNome.addLast(agora);
             }
-            ultimoRegistroPorIp.put(ip, agora);
+
+            if (cooldownMs > 0) {
+                Long ultimo = ultimoRegistroPorIp.get(ip);
+                if (ultimo != null && agora - ultimo < cooldownMs) {
+                    long restante = Math.max(1L, (cooldownMs - (agora - ultimo) + 999L) / 1000L);
+                    if (maxTentativas > 0) {
+                        removerUltima(tentativasPorIp, ip);
+                        removerUltima(tentativasPorNome, chaveNome);
+                    }
+                    player.sendMessage(ChatColor.RED + "Aguarde " + restante + " segundo(s) antes de tentar registrar novamente.");
+                    return false;
+                }
+                ultimoRegistroPorIp.put(ip, agora);
+            }
+            return true;
         }
-        return true;
     }
 
-    private boolean podeRegistrar(ConcurrentHashMap<String, Deque<Long>> mapa, String chave,
-                                   long agora, long janelaMs, int maxTentativas) {
+    private Deque<Long> filaAtual(ConcurrentHashMap<String, Deque<Long>> mapa, String chave, long agora, long janelaMs) {
         Deque<Long> fila = mapa.computeIfAbsent(chave, ignored -> new ArrayDeque<>());
-        synchronized (fila) {
-            while (!fila.isEmpty() && agora - fila.peekFirst() >= janelaMs) fila.removeFirst();
-            return fila.size() < maxTentativas;
-        }
+        while (!fila.isEmpty() && agora - fila.peekFirst() >= janelaMs) fila.removeFirst();
+        return fila;
     }
 
-    private void registrarTentativa(ConcurrentHashMap<String, Deque<Long>> mapa, String chave,
-                                    long agora, long janelaMs) {
-        Deque<Long> fila = mapa.computeIfAbsent(chave, ignored -> new ArrayDeque<>());
-        synchronized (fila) {
-            while (!fila.isEmpty() && agora - fila.peekFirst() >= janelaMs) fila.removeFirst();
-            fila.addLast(agora);
-        }
+    private void removerUltima(ConcurrentHashMap<String, Deque<Long>> mapa, String chave) {
+        Deque<Long> fila = mapa.get(chave);
+        if (fila == null) return;
+        if (!fila.isEmpty()) fila.removeLast();
+        if (fila.isEmpty()) mapa.remove(chave, fila);
     }
 
     public void cleanupExpired() {
-        long agora = System.currentTimeMillis();
-        long janelaMs = Math.max(1L, plugin.getConfig().getLong("registro.janela-minutos", 5)) * 60_000L;
-        tentativasPorIp.entrySet().removeIf(entry -> {
-            Deque<Long> fila = entry.getValue();
-            synchronized (fila) {
+        synchronized (rateLimitLock) {
+            long agora = System.currentTimeMillis();
+            long janelaMs = Math.max(1L, plugin.getConfig().getLong("registro.janela-minutos", 5)) * 60_000L;
+            tentativasPorIp.entrySet().removeIf(entry -> {
+                Deque<Long> fila = entry.getValue();
                 while (!fila.isEmpty() && agora - fila.peekFirst() >= janelaMs) fila.removeFirst();
                 return fila.isEmpty();
-            }
-        });
-        tentativasPorNome.entrySet().removeIf(entry -> {
-            Deque<Long> fila = entry.getValue();
-            synchronized (fila) {
+            });
+            tentativasPorNome.entrySet().removeIf(entry -> {
+                Deque<Long> fila = entry.getValue();
                 while (!fila.isEmpty() && agora - fila.peekFirst() >= janelaMs) fila.removeFirst();
                 return fila.isEmpty();
-            }
-        });
-        long cooldownMs = Math.max(0L, plugin.getConfig().getLong("registro.cooldown-segundos", 30)) * 1000L;
-        ultimoRegistroPorIp.entrySet().removeIf(entry -> cooldownMs == 0 || agora - entry.getValue() >= cooldownMs);
+            });
+            long cooldownMs = Math.max(0L, plugin.getConfig().getLong("registro.cooldown-segundos", 30)) * 1000L;
+            ultimoRegistroPorIp.entrySet().removeIf(entry -> cooldownMs == 0 || agora - entry.getValue() >= cooldownMs);
+        }
     }
 }
