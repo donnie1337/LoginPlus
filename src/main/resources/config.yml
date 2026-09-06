@@ -1,0 +1,18 @@
+# Configuracoes do AuthSystem
+
+# Tempo (em segundos) que o jogador tem para digitar /login ou /registro
+# antes de ser expulso automaticamente do servidor.
+tempo-limite-login-segundos: 60
+
+# Numero de vezes que o jogador PODE errar a senha no /login.
+# Ao errar mais que isso (ex.: 3 -> expulso no 4o erro), ele e expulso
+# e o IP fica temporariamente bloqueado (veja a opcao abaixo).
+max-tentativas-login: 3
+
+# Quanto tempo (em minutos) o IP fica impedido de tentar logar de novo
+# depois de exceder o limite acima. Isso e o que impede a pessoa de so
+# desconectar e reconectar para "resetar" as tentativas (bypass).
+bloqueio-apos-exceder-tentativas-minutos: 5
+
+# Tamanho minimo exigido para a senha no /registro.
+tamanho-minimo-senha: 4

@@ -1,0 +1,16 @@
+name: AuthSystem
+version: '1.0.0'
+main: com.authsystem.AuthSystem
+# Ajuste conforme a versao real do seu servidor, se necessario.
+api-version: '26.2'
+author: SeuNome
+description: Sistema de login e registro. Contas originais (premium) entram automaticamente.
+
+commands:
+  login:
+    description: Efetua login na sua conta
+    usage: /login <senha>
+  registro:
+    description: Cria uma nova conta
+    usage: /registro <senha> <confirmar-senha>
+    aliases: [register, cadastrar]

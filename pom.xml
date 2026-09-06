@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.authsystem</groupId>
+    <artifactId>AuthSystem</artifactId>
+    <version>1.0.0</version>
+    <packaging>jar</packaging>
+    <name>AuthSystem</name>
+    <description>Plugin de login/registro para Spigot com deteccao automatica de contas originais.</description>
+
+    <properties>
+        <!-- Minecraft 26.x exige Java 25 para RODAR o servidor.
+             Para COMPILAR o plugin, 21 garante bytecode compativel
+             (roda numa JVM 25 sem problemas). Troque para 25 se preferir
+             compilar exatamente na mesma versao do servidor. -->
+        <maven.compiler.release>21</maven.compiler.release>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+
+    <repositories>
+        <!-- Repositorio oficial do Spigot (nao esta no Maven Central) -->
+        <repository>
+            <id>spigot-repo</id>
+            <url>https://hub.spigotmc.org/nexus/content/repositories/snapshots/</url>
+        </repository>
+    </repositories>
+
+    <dependencies>
+        <!--
+            IMPORTANTE: o Spigot nao pode redistribuir esse jar pronto
+            (por causa do licenciamento da Mojang). Antes de compilar,
+            voce precisa gerar esse artefato localmente rodando o
+            BuildTools.jar UMA vez (instrucoes no README.md).
+        -->
+        <dependency>
+            <groupId>org.spigotmc</groupId>
+            <artifactId>spigot-api</artifactId>
+            <version>26.2-R0.1-SNAPSHOT</version>
+            <scope>provided</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <finalName>${project.name}</finalName>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.13.0</version>
+            </plugin>
+        </plugins>
+    </build>
+</project>
