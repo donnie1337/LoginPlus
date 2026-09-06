@@ -26,115 +26,85 @@ public class PlayerDataManager {
     private void load() {
         if (!file.exists()) {
             plugin.getDataFolder().mkdirs();
-            try {
-                file.createNewFile();
-            } catch (IOException e) {
-                plugin.getLogger().log(Level.SEVERE, "Nao foi possivel criar playerdata.yml", e);
-            }
+            try { file.createNewFile(); }
+            catch (IOException e) { plugin.getLogger().log(Level.SEVERE, "Nao foi possivel criar playerdata.yml", e); }
         }
         data = YamlConfiguration.loadConfiguration(file);
     }
 
-    public void save() {
-        try {
-            data.save(file);
-        } catch (IOException e) {
-            plugin.getLogger().log(Level.SEVERE, "Nao foi possivel salvar playerdata.yml", e);
-        }
+    public synchronized void save() {
+        try { data.save(file); }
+        catch (IOException e) { plugin.getLogger().log(Level.SEVERE, "Nao foi possivel salvar playerdata.yml", e); }
     }
 
-    private String key(String username) {
-        return "players." + username.toLowerCase();
-    }
+    private String key(String username) { return "players." + username.toLowerCase(); }
+    public synchronized boolean isRegistered(String username) { return username != null && data.contains(key(username) + ".senha"); }
 
-    public boolean isRegistered(String username) {
-        return data.contains(key(username) + ".senha");
-    }
-
-    /** Verifica se a conta pode ser usada a partir do IP informado. */
     public synchronized boolean canUseIp(String username, String ip, int limiteIps) {
-        if (ip == null || ip.isBlank() || limiteIps <= 0) {
-            return true;
-        }
-
+        if (ip == null || ip.isBlank() || limiteIps <= 0) return true;
         List<String> ips = getIps(username);
-        if (ips.contains(ip)) {
-            return true;
-        }
-        return ips.size() < limiteIps;
+        return ips.contains(ip) || ips.size() < limiteIps;
     }
 
-    /** Adiciona o IP a lista de IPs conhecidos da conta, sem duplicar. */
     public synchronized void addIp(String username, String ip) {
-        if (ip == null || ip.isBlank()) {
-            return;
-        }
-
+        if (username == null || ip == null || ip.isBlank()) return;
         String base = key(username);
         List<String> ips = getIps(username);
         if (!ips.contains(ip)) {
             ips.add(ip);
             data.set(base + ".ips", ips);
         }
-
-        if (!data.contains(base + ".ip")) {
-            data.set(base + ".ip", ip);
-        }
+        if (!data.contains(base + ".ip")) data.set(base + ".ip", ip);
         save();
     }
 
-    /** Retorna os IPs conhecidos da conta, incluindo o formato antigo. */
     private List<String> getIps(String username) {
         String base = key(username);
         List<String> ips = new ArrayList<>();
-
         String ipAntigo = data.getString(base + ".ip");
-        if (ipAntigo != null && !ipAntigo.isBlank()) {
-            ips.add(ipAntigo);
-        }
-
-        List<String> ipsSalvos = data.getStringList(base + ".ips");
-        for (String ip : ipsSalvos) {
-            if (ip != null && !ip.isBlank() && !ips.contains(ip)) {
-                ips.add(ip);
-            }
+        if (ipAntigo != null && !ipAntigo.isBlank()) ips.add(ipAntigo);
+        for (String ip : data.getStringList(base + ".ips")) {
+            if (ip != null && !ip.isBlank() && !ips.contains(ip)) ips.add(ip);
         }
         return ips;
     }
 
-    /** Registra a conta e valida as regras de senha e os dados obrigatorios. */
     public synchronized boolean register(String username, String password, String ip) {
-        if (username == null || username.isBlank() || isRegistered(username)) {
-            return false;
-        }
-
+        if (username == null || username.isBlank() || isRegistered(username) || ip == null || ip.isBlank()) return false;
         int minSenha = plugin.getConfig().getInt("minimo-caracteres-senha", PasswordUtils.DEFAULT_MIN_PASSWORD_LENGTH);
         int maxSenha = plugin.getConfig().getInt("maximo-caracteres-senha", PasswordUtils.DEFAULT_MAX_PASSWORD_LENGTH);
-        if (PasswordUtils.validatePassword(password, minSenha, maxSenha) != null) {
-            return false;
-        }
-
-        if (ip == null || ip.isBlank()) {
-            return false;
-        }
-
+        if (PasswordUtils.validatePassword(password, minSenha, maxSenha) != null) return false;
         String salt = PasswordUtils.generateSalt();
-        String hash = PasswordUtils.hash(password, salt);
-        data.set(key(username) + ".senha", hash);
-        data.set(key(username) + ".salt", salt);
-        data.set(key(username) + ".ip", ip);
-        data.set(key(username) + ".ips", List.of(ip));
-        data.set(key(username) + ".registrado-em", System.currentTimeMillis());
+        String base = key(username);
+        data.set(base + ".senha", PasswordUtils.hash(password, salt));
+        data.set(base + ".salt", salt);
+        data.set(base + ".iteracoes", PasswordUtils.CURRENT_ITERATIONS);
+        data.set(base + ".ip", ip);
+        data.set(base + ".ips", List.of(ip));
+        data.set(base + ".registrado-em", System.currentTimeMillis());
         save();
         return true;
     }
 
-    public boolean checkPassword(String username, String password) {
+    public synchronized boolean checkPassword(String username, String password) {
         String salt = data.getString(key(username) + ".salt");
         String hash = data.getString(key(username) + ".senha");
-        if (salt == null || hash == null) {
-            return false;
-        }
-        return PasswordUtils.verify(password, salt, hash);
+        if (salt == null || hash == null) return false;
+        int iteracoes = data.getInt(key(username) + ".iteracoes", PasswordUtils.LEGACY_ITERATIONS);
+        return PasswordUtils.verify(password, salt, hash, iteracoes);
+    }
+
+    public synchronized boolean needsPasswordUpgrade(String username) {
+        return data.getInt(key(username) + ".iteracoes", PasswordUtils.LEGACY_ITERATIONS) < PasswordUtils.CURRENT_ITERATIONS;
+    }
+
+    public synchronized void upgradePassword(String username, String password) {
+        if (password == null || !isRegistered(username)) return;
+        String salt = PasswordUtils.generateSalt();
+        String base = key(username);
+        data.set(base + ".salt", salt);
+        data.set(base + ".senha", PasswordUtils.hash(password, salt));
+        data.set(base + ".iteracoes", PasswordUtils.CURRENT_ITERATIONS);
+        save();
     }
 }
