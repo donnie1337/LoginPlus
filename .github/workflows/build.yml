@@ -35,13 +35,11 @@ jobs:
           JAR=$(find target -maxdepth 1 -type f -name '*.jar' ! -name '*original*' -print -quit)
           if [ -z "$JAR" ]; then
             echo 'ERRO: nenhum JAR do plugin foi gerado em target/.'
-            echo 'Conteudo de target/:'
             ls -la target/ || true
             exit 1
           fi
 
           echo "Validando JAR: $JAR"
-
           rm -rf /tmp/authsystem-jar
           mkdir -p /tmp/authsystem-jar
           unzip -q "$JAR" -d /tmp/authsystem-jar
@@ -59,7 +57,6 @@ jobs:
             linha="$2"
             if ! grep -F "$linha" "$arquivo" >/dev/null; then
               echo "ERRO: linha esperada nao encontrada em $arquivo: $linha"
-              echo 'Conteudo encontrado:'
               cat "$arquivo"
               exit 1
             fi
@@ -69,10 +66,20 @@ jobs:
           validar_linha /tmp/authsystem-jar/config.yml 'maximo-caracteres-senha: 16'
           validar_linha /tmp/authsystem-jar/config.yml 'max-contas-por-ip: 1'
           validar_linha /tmp/authsystem-jar/config.yml 'max-ips-por-conta: 1'
-          validar_linha /tmp/authsystem-jar/plugin.yml "version: '1.1.2'"
+          validar_linha /tmp/authsystem-jar/plugin.yml "version: '1.1.3'"
 
           if grep -F 'tamanho-minimo-senha:' /tmp/authsystem-jar/config.yml >/dev/null; then
-            echo 'ERRO: configuracao antiga tamanho-minimo-senha ainda esta no JAR.'
+            echo 'ERRO: configuracao antiga tamanho-minimo-senha nao deve existir no JAR.'
+            exit 1
+          fi
+
+          if grep -F 'max-contas-por-ip' src/main/java/com/authsystem/manager/PlayerDataManager.java >/dev/null; then
+            echo 'ERRO: max-contas-por-ip nao pode controlar o cadastro das contas.'
+            exit 1
+          fi
+
+          if ! grep -F 'tryRegisterAuthenticatedIp' src/main/java/com/authsystem/commands/LoginCommand.java >/dev/null; then
+            echo 'ERRO: limite de contas por IP nao esta sendo aplicado no /login.'
             exit 1
           fi
 
@@ -81,7 +88,7 @@ jobs:
       - name: Publicar JAR do plugin
         uses: actions/upload-artifact@v4
         with:
-          name: AuthSystem-1.1.2
+          name: AuthSystem-1.1.3
           path: target/*.jar
           if-no-files-found: error
           retention-days: 7
