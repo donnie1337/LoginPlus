@@ -14,8 +14,8 @@ import java.util.Base64;
  */
 public final class PasswordUtils {
 
-    public static final int MIN_PASSWORD_LENGTH = 7;
-    public static final int MAX_PASSWORD_LENGTH = 16;
+    public static final int DEFAULT_MIN_PASSWORD_LENGTH = 7;
+    public static final int DEFAULT_MAX_PASSWORD_LENGTH = 16;
 
     private static final int ITERATIONS = 65536;
     private static final int KEY_LENGTH_BITS = 256;
@@ -25,20 +25,24 @@ public final class PasswordUtils {
     }
 
     /**
-     * Valida todas as regras de uma senha de cadastro.
+     * Valida todas as regras de uma senha de cadastro usando os limites configurados no plugin.
      * Retorna uma mensagem pronta quando houver erro, ou null quando a senha for valida.
      */
-    public static String validatePassword(String password) {
+    public static String validatePassword(String password, int minLength, int maxLength) {
         if (password == null) {
             return "Senha invalida.";
         }
 
-        if (password.length() < MIN_PASSWORD_LENGTH) {
-            return "Sua senha precisa ter pelo menos " + MIN_PASSWORD_LENGTH + " caracteres.";
+        if (minLength < 1 || maxLength < minLength) {
+            return "Configuracao de senha invalida.";
         }
 
-        if (password.length() > MAX_PASSWORD_LENGTH) {
-            return "Sua senha pode ter no maximo " + MAX_PASSWORD_LENGTH + " caracteres.";
+        if (password.length() < minLength) {
+            return "Sua senha precisa ter pelo menos " + minLength + " caracteres.";
+        }
+
+        if (password.length() > maxLength) {
+            return "Sua senha pode ter no maximo " + maxLength + " caracteres.";
         }
 
         if (!password.matches("^[A-Za-z0-9]+$")) {
