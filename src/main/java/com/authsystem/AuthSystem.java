@@ -18,6 +18,9 @@ import org.bukkit.plugin.java.JavaPlugin;
 import java.io.File;
 
 public class AuthSystem extends JavaPlugin {
+    private static final int DEFAULT_MAX_ACCOUNTS_PER_IP = 1;
+    private static final int DEFAULT_MAX_IPS_PER_ACCOUNT = 1;
+
     private PlayerDataManager playerDataManager;
     private SessionManager sessionManager;
     private LoginProtection loginProtection;
@@ -34,6 +37,7 @@ public class AuthSystem extends JavaPlugin {
         }
 
         ensureConfigDefaults();
+        validarConfiguracoes();
         saveResource("mensagens/titulos.yml", false);
 
         this.playerDataManager = new PlayerDataManager(this);
@@ -53,10 +57,10 @@ public class AuthSystem extends JavaPlugin {
                 new PremiumVerificationListener(this, premiumLoginVerifier, premiumAuthenticator));
 
         getLogger().info("AuthSystem ativado com autenticacao premium criptografica!");
-        getLogger().info("Senha: " + getConfig().getInt("minimo-caracteres-senha", 7)
-                + " a " + getConfig().getInt("maximo-caracteres-senha", 16) + " caracteres.");
-        getLogger().info("Limite de contas autenticadas por IP: " + getConfig().getInt("max-contas-por-ip", 1));
-        getLogger().info("Limite de IPs por conta: " + getConfig().getInt("max-ips-por-conta", 1));
+        getLogger().info("Senha: " + getConfig().getInt("minimo-caracteres-senha", PasswordUtils.DEFAULT_MIN_PASSWORD_LENGTH)
+                + " a " + getConfig().getInt("maximo-caracteres-senha", PasswordUtils.DEFAULT_MAX_PASSWORD_LENGTH) + " caracteres.");
+        getLogger().info("Limite de contas autenticadas por IP: " + getConfig().getInt("max-contas-por-ip", DEFAULT_MAX_ACCOUNTS_PER_IP));
+        getLogger().info("Limite de IPs por conta: " + getConfig().getInt("max-ips-por-conta", DEFAULT_MAX_IPS_PER_ACCOUNT));
     }
 
     /** Adiciona apenas opcoes ausentes, preservando tudo que o servidor ja configurou. */
@@ -66,10 +70,42 @@ public class AuthSystem extends JavaPlugin {
         getConfig().addDefault("bloqueio-apos-exceder-tentativas-minutos", 5);
         getConfig().addDefault("minimo-caracteres-senha", PasswordUtils.DEFAULT_MIN_PASSWORD_LENGTH);
         getConfig().addDefault("maximo-caracteres-senha", PasswordUtils.DEFAULT_MAX_PASSWORD_LENGTH);
-        getConfig().addDefault("max-contas-por-ip", 1);
-        getConfig().addDefault("max-ips-por-conta", 1);
+        getConfig().addDefault("max-contas-por-ip", DEFAULT_MAX_ACCOUNTS_PER_IP);
+        getConfig().addDefault("max-ips-por-conta", DEFAULT_MAX_IPS_PER_ACCOUNT);
 
         getConfig().options().copyDefaults(true);
+        saveConfig();
+    }
+
+    /** Corrige valores invalidos da configuracao antes de iniciar o fluxo de autenticacao. */
+    private void validarConfiguracoes() {
+        int minimoSenha = getConfig().getInt("minimo-caracteres-senha", PasswordUtils.DEFAULT_MIN_PASSWORD_LENGTH);
+        int maximoSenha = getConfig().getInt("maximo-caracteres-senha", PasswordUtils.DEFAULT_MAX_PASSWORD_LENGTH);
+        int maxContasIp = getConfig().getInt("max-contas-por-ip", DEFAULT_MAX_ACCOUNTS_PER_IP);
+        int maxIpsConta = getConfig().getInt("max-ips-por-conta", DEFAULT_MAX_IPS_PER_ACCOUNT);
+
+        if (minimoSenha < 1) {
+            minimoSenha = PasswordUtils.DEFAULT_MIN_PASSWORD_LENGTH;
+            getConfig().set("minimo-caracteres-senha", minimoSenha);
+            getLogger().warning("minimo-caracteres-senha invalido. Usando " + minimoSenha + ".");
+        }
+
+        if (maximoSenha < minimoSenha) {
+            maximoSenha = Math.max(PasswordUtils.DEFAULT_MAX_PASSWORD_LENGTH, minimoSenha);
+            getConfig().set("maximo-caracteres-senha", maximoSenha);
+            getLogger().warning("maximo-caracteres-senha menor que o minimo. Usando " + maximoSenha + ".");
+        }
+
+        if (maxContasIp < 0) {
+            getConfig().set("max-contas-por-ip", DEFAULT_MAX_ACCOUNTS_PER_IP);
+            getLogger().warning("max-contas-por-ip invalido. Usando " + DEFAULT_MAX_ACCOUNTS_PER_IP + ".");
+        }
+
+        if (maxIpsConta < 0) {
+            getConfig().set("max-ips-por-conta", DEFAULT_MAX_IPS_PER_ACCOUNT);
+            getLogger().warning("max-ips-por-conta invalido. Usando " + DEFAULT_MAX_IPS_PER_ACCOUNT + ".");
+        }
+
         saveConfig();
     }
 

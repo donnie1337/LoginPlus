@@ -28,20 +28,22 @@ bloqueio-apos-exceder-tentativas-minutos: 5
 # ------------------------------------------------------------
 
 # Tamanho MINIMO da senha.
+# Edite este valor para definir o menor tamanho permitido.
 # Exemplo: 7 exige pelo menos 7 caracteres.
-# A senha aceita somente letras A-Z/a-z e numeros 0-9.
 minimo-caracteres-senha: 7
 
 # Tamanho MAXIMO da senha.
+# Edite este valor para definir o maior tamanho permitido.
 # Exemplo: 16 impede senhas com mais de 16 caracteres.
 maximo-caracteres-senha: 16
 
 # ------------------------------------------------------------
-# LIMITE DE JOGADORES POR IP
+# CONTAS AUTENTICADAS POR IP
 # ------------------------------------------------------------
 
 # Quantas contas podem ficar AUTENTICADAS/JOGANDO ao mesmo tempo
 # usando o mesmo IP.
+# Esta regra vale para contas Minecraft ORIGINAL e PIRATA.
 #
 # 1 = somente uma conta jogando por IP.
 # 2 = ate duas contas jogando pelo mesmo IP.
@@ -49,8 +51,8 @@ maximo-caracteres-senha: 16
 # 0 = sem limite.
 #
 # IMPORTANTE: este limite NAO bloqueia o cadastro.
-# Uma segunda conta pode ser cadastrada, mas nao podera jogar enquanto
-# todas as vagas daquele IP estiverem ocupadas.
+# Uma segunda conta pode ser cadastrada normalmente, mas so podera
+# autenticar/jogar quando houver uma vaga disponivel para aquele IP.
 max-contas-por-ip: 1
 
 # ------------------------------------------------------------
@@ -64,3 +66,4 @@ max-contas-por-ip: 1
 # 3 = a conta pode usar ate tres IPs diferentes.
 # 0 = sem limite.
 max-ips-por-conta: 1
+
