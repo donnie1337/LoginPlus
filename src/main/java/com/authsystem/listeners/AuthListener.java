@@ -45,20 +45,24 @@ public class AuthListener implements Listener {
             return;
         }
 
-        // A existência do nick na Mojang nunca é suficiente para liberar o jogador.
-        // Este resultado só existe quando PremiumVerificationListener completou o handshake.
-        UUID verifiedUuid = plugin.getPremiumAuthenticator().consumeVerified(
-                event.getName(), ip, event.getUniqueId());
-        preLoginPremiumResult.put(event.getUniqueId(), verifiedUuid != null);
+        // Não consuma a prova premium aqui. Em online-mode=false o servidor pode
+        // disparar este evento mais de uma vez durante o desafio e o replay do Login Start.
+        // A prova só é consumida no PlayerJoinEvent, evitando uma corrida que fazia
+        // contas originais caírem no fluxo de registro.
+        if (plugin.getPremiumAuthenticator().isVerified(event.getName(), ip)) {
+            preLoginPremiumResult.put(event.getUniqueId(), true);
+        }
     }
 
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
-        boolean premium = preLoginPremiumResult.getOrDefault(player.getUniqueId(), false);
-        preLoginPremiumResult.remove(player.getUniqueId());
+        String ip = player.getAddress() == null
+                ? null
+                : player.getAddress().getAddress().getHostAddress();
 
-        if (premium) {
+        boolean premium = preLoginPremiumResult.remove(player.getUniqueId()) != null;
+        if (premium && plugin.getPremiumAuthenticator().consumeVerified(player.getName(), ip) != null) {
             plugin.getSessionManager().markPremium(player.getUniqueId());
             plugin.getSessionManager().setAuthenticated(player, true);
             player.sendMessage(ChatColor.GREEN + "Conta original verificada! Login automatico realizado.");
@@ -84,6 +88,7 @@ public class AuthListener implements Listener {
 
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
+        preLoginPremiumResult.remove(event.getPlayer().getUniqueId());
         plugin.getSessionManager().clear(event.getPlayer());
         plugin.getPremiumAuthenticator().clear(event.getPlayer().getName(),
                 event.getPlayer().getAddress() == null ? null : event.getPlayer().getAddress().getAddress().getHostAddress());
@@ -91,6 +96,7 @@ public class AuthListener implements Listener {
 
     @EventHandler
     public void onKick(PlayerKickEvent event) {
+        preLoginPremiumResult.remove(event.getPlayer().getUniqueId());
         plugin.getSessionManager().clear(event.getPlayer());
         plugin.getPremiumAuthenticator().clear(event.getPlayer().getName(),
                 event.getPlayer().getAddress() == null ? null : event.getPlayer().getAddress().getAddress().getHostAddress());
