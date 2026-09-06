@@ -60,6 +60,13 @@ public class LoginCommand implements CommandExecutor {
                 return true;
             }
 
+            int limiteContas = plugin.getConfig().getInt("max-contas-por-ip", 1);
+            if (!plugin.getSessionManager().tryRegisterAuthenticatedIp(ip, player.getUniqueId(), limiteContas)) {
+                player.sendMessage(ChatColor.RED + "Este IP já atingiu o limite de " + limiteContas
+                        + " conta(s) conectada(s) ao mesmo tempo.");
+                return true;
+            }
+
             plugin.getPlayerDataManager().addIp(player.getName(), ip);
             plugin.getSessionManager().setAuthenticated(player, true);
             plugin.getSessionManager().cancelTimeout(player);
@@ -68,7 +75,6 @@ public class LoginCommand implements CommandExecutor {
             return true;
         }
 
-        // A contagem de erros fica presa ao IP, entao sair e entrar novamente nao zera as tentativas.
         int max = Math.max(1, plugin.getConfig().getInt("max-tentativas-login", 3));
         long minutosBloqueio = Math.max(1L, plugin.getConfig().getLong("bloqueio-apos-exceder-tentativas-minutos", 5));
         long bloqueioMs = minutosBloqueio * 60_000L;
