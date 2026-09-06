@@ -7,12 +7,17 @@ import org.bukkit.configuration.file.YamlConfiguration;
 
 import java.io.File;
 import java.io.IOException;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import java.util.logging.Level;
 
-/** Guarda os dados de cadastro das contas e os IPs usados por cada conta. */
+/** Guarda os dados de cadastro das contas, incluindo UUID, data de registro e IPs usados. */
 public class PlayerDataManager {
+    private static final DateTimeFormatter FORMATO_REGISTRO = DateTimeFormatter.ofPattern("ddMMyyyyHH");
+
     private final AuthSystem plugin;
     private final File file;
     private FileConfiguration data;
@@ -69,8 +74,9 @@ public class PlayerDataManager {
         return ips;
     }
 
-    public synchronized boolean register(String username, String password, String ip) {
-        if (username == null || username.isBlank() || isRegistered(username) || ip == null || ip.isBlank()) return false;
+    /** Registra a conta, guardando UUID, data de registro e os dados de acesso iniciais. */
+    public synchronized boolean register(String username, String password, String ip, UUID uuid) {
+        if (username == null || username.isBlank() || isRegistered(username) || ip == null || ip.isBlank() || uuid == null) return false;
         int minSenha = plugin.getConfig().getInt("minimo-caracteres-senha", PasswordUtils.DEFAULT_MIN_PASSWORD_LENGTH);
         int maxSenha = plugin.getConfig().getInt("maximo-caracteres-senha", PasswordUtils.DEFAULT_MAX_PASSWORD_LENGTH);
         if (PasswordUtils.validatePassword(password, minSenha, maxSenha) != null) return false;
@@ -79,9 +85,10 @@ public class PlayerDataManager {
         data.set(base + ".senha", PasswordUtils.hash(password, salt));
         data.set(base + ".salt", salt);
         data.set(base + ".iteracoes", PasswordUtils.CURRENT_ITERATIONS);
+        data.set(base + ".uuid", uuid.toString());
         data.set(base + ".ip", ip);
         data.set(base + ".ips", List.of(ip));
-        data.set(base + ".registrado-em", System.currentTimeMillis());
+        data.set(base + ".registrado-em", FORMATO_REGISTRO.format(LocalDateTime.now()));
         save();
         return true;
     }
