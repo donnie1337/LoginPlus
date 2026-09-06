@@ -32,7 +32,7 @@ import java.util.logging.Logger;
 /** Real premium challenge for an offline-mode server. */
 public final class PremiumVerificationListener extends PacketListenerAbstract {
     private static final Logger LOGGER = Logger.getLogger("AuthSystem");
-    private static final long FALLBACK_MS = 3000L;
+    private static final long FALLBACK_MS = 10000L;
 
     private final PremiumLoginVerifier verifier;
     private final PremiumAuthenticator authenticator;
@@ -94,12 +94,13 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
     private void handleEncryptionResponse(PacketReceiveEvent event) {
         User user = event.getUser();
         String key = connectionKey(user);
-        PendingConnection pending = connections.remove(key);
+        PendingConnection pending = connections.get(key);
         if (pending == null || !verifier.hasPending(key)) return;
 
         WrapperLoginClientEncryptionResponse packet = new WrapperLoginClientEncryptionResponse(event);
         Optional<byte[]> token = packet.getEncryptedVerifyToken();
         if (token.isEmpty()) {
+            connections.remove(key, pending);
             verifier.remove(key);
             event.setCancelled(true);
             resume(user, pending.version(), pending.username(), pending.playerUuid());
@@ -112,12 +113,15 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
             sharedSecret = verifier.decrypt(packet.getEncryptedSharedSecret());
             enableEncryption(user.getChannel(), sharedSecret);
         } catch (GeneralSecurityException e) {
+            connections.remove(key, pending);
             verifier.remove(key);
+            LOGGER.warning("Could not enable premium encryption for " + pending.username() + ": " + e.getMessage());
             resume(user, pending.version(), pending.username(), pending.playerUuid());
             return;
         }
 
         verifier.verify(key, sharedSecret, token.get()).thenAccept(result -> {
+            connections.remove(key, pending);
             result.ifPresent(uuid -> {
                 authenticator.markVerified(pending.username(), pending.ip(), uuid);
                 LOGGER.info("Premium identity verified for " + pending.username());
