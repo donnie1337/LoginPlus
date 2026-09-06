@@ -13,9 +13,12 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class LoginProtection {
 
+    private static final long HISTORICO_EXPIRA_MS = 15 * 60_000L;
+
     private static class Registro {
         int tentativas;
         long bloqueadoAte; // 0 = nao bloqueado
+        long ultimaTentativa;
     }
 
     private final ConcurrentHashMap<String, Registro> porIp = new ConcurrentHashMap<>();
@@ -23,14 +26,24 @@ public class LoginProtection {
     /** true se esse IP ainda esta no periodo de bloqueio. */
     public boolean estaBloqueado(String ip) {
         Registro r = porIp.get(ip);
-        if (r == null || r.bloqueadoAte == 0) {
+        if (r == null) {
             return false;
         }
-        if (System.currentTimeMillis() > r.bloqueadoAte) {
-            porIp.remove(ip); // bloqueio expirou
+
+        long agora = System.currentTimeMillis();
+        if (r.bloqueadoAte != 0) {
+            if (agora <= r.bloqueadoAte) {
+                return true;
+            }
+            porIp.remove(ip, r);
             return false;
         }
-        return true;
+
+        // Erros antigos sem bloqueio nao precisam permanecer em memoria.
+        if (agora - r.ultimaTentativa > HISTORICO_EXPIRA_MS) {
+            porIp.remove(ip, r);
+        }
+        return false;
     }
 
     public long segundosRestantes(String ip) {
@@ -47,11 +60,18 @@ public class LoginProtection {
      * Se ultrapassar maxTentativas, o IP e bloqueado por bloqueioMs.
      */
     public int registrarErro(String ip, int maxTentativas, long bloqueioMs) {
-        Registro r = porIp.computeIfAbsent(ip, k -> new Registro());
-        r.tentativas++;
-        if (r.tentativas > maxTentativas) {
-            r.bloqueadoAte = System.currentTimeMillis() + bloqueioMs;
-        }
+        long agora = System.currentTimeMillis();
+        Registro r = porIp.compute(ip, (chave, atual) -> {
+            if (atual == null || agora - atual.ultimaTentativa > HISTORICO_EXPIRA_MS) {
+                atual = new Registro();
+            }
+            atual.tentativas++;
+            atual.ultimaTentativa = agora;
+            if (atual.tentativas > maxTentativas) {
+                atual.bloqueadoAte = agora + bloqueioMs;
+            }
+            return atual;
+        });
         return r.tentativas;
     }
 
