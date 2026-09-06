@@ -16,3 +16,8 @@ bloqueio-apos-exceder-tentativas-minutos: 5
 
 # Tamanho minimo exigido para a senha no /registro.
 tamanho-minimo-senha: 4
+
+# Quantas contas diferentes podem ser cadastradas pelo mesmo IP.
+# 1 = apenas uma conta por IP.
+# 0 = sem limite.
+max-contas-por-ip: 1
