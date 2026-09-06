@@ -28,6 +28,7 @@ public class PlayerDataManager {
     private final AtomicLong dataVersion = new AtomicLong();
     private FileConfiguration data;
     private boolean asyncSaveScheduled;
+    private volatile boolean shuttingDown;
 
     public PlayerDataManager(AuthSystem plugin) {
         this.plugin = plugin;
@@ -44,6 +45,15 @@ public class PlayerDataManager {
         data = YamlConfiguration.loadConfiguration(file);
     }
 
+    /** Fecha o agendamento async e grava o estado mais recente sem permitir que um snapshot antigo o sobrescreva. */
+    public void shutdown() {
+        synchronized (this) {
+            shuttingDown = true;
+            asyncSaveScheduled = false;
+        }
+        save();
+    }
+
     /** Salva imediatamente, serializando a escrita com qualquer save async em andamento. */
     public void save() {
         final String snapshot;
@@ -54,12 +64,8 @@ public class PlayerDataManager {
         }
     }
 
-    /**
-     * Agenda uma persistencia sem bloquear a thread principal com I/O.
-     * A escrita e serializada e usa versao para garantir que alteracoes feitas
-     * durante a gravacao gerem outra persistencia antes de encerrar o worker.
-     */
     private synchronized void scheduleAsyncSave() {
+        if (shuttingDown) return;
         dataVersion.incrementAndGet();
         if (asyncSaveScheduled) return;
         asyncSaveScheduled = true;
@@ -71,11 +77,21 @@ public class PlayerDataManager {
             final String snapshot;
             final long snapshotVersion;
             synchronized (this) {
+                if (shuttingDown) {
+                    asyncSaveScheduled = false;
+                    return;
+                }
                 snapshot = data.saveToString();
                 snapshotVersion = dataVersion.get();
             }
 
             synchronized (ioLock) {
+                synchronized (this) {
+                    if (shuttingDown) {
+                        asyncSaveScheduled = false;
+                        return;
+                    }
+                }
                 try {
                     Files.writeString(file.toPath(), snapshot, StandardCharsets.UTF_8);
                 } catch (IOException e) {
@@ -85,6 +101,10 @@ public class PlayerDataManager {
             }
 
             synchronized (this) {
+                if (shuttingDown) {
+                    asyncSaveScheduled = false;
+                    return;
+                }
                 if (dataVersion.get() == snapshotVersion) {
                     asyncSaveScheduled = false;
                     return;
