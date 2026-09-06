@@ -42,6 +42,7 @@ AuthSystem/
 - Validação da sessão através da Mojang.
 - Registro e login para contas Cracked.
 - Senhas protegidas com PBKDF2WithHmacSHA256 e salt aleatório.
+- Senhas de registro limitadas a no máximo 16 caracteres, contendo letras e números.
 - Limite configurável de contas por endereço IP.
 - Proteção contra bypass do limite de contas e do processo de autenticação.
 - Limite de tentativas de login por IP.
@@ -78,6 +79,8 @@ Para criar uma conta, utiliza-se:
 ```text
 /registro <senha> <confirmar-senha>
 ```
+
+A senha deve conter pelo menos uma letra e um número e possuir entre o tamanho mínimo configurado e **16 caracteres**.
 
 Depois do registro, o acesso pode ser realizado com:
 
@@ -160,6 +163,9 @@ bloqueio-apos-exceder-tentativas-minutos: 5
 
 # Tamanho mínimo exigido para a senha no /registro
 tamanho-minimo-senha: 4
+
+# Tamanho máximo permitido para a senha no /registro
+tamanho-maximo-senha: 16
 
 # Quantas contas diferentes podem ser cadastradas pelo mesmo IP.
 # 1 = apenas uma conta por IP.
