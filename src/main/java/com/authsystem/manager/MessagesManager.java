@@ -33,4 +33,9 @@ public final class MessagesManager {
     private String color(String value) {
         return ChatColor.translateAlternateColorCodes('&', value);
     }
+
+    // Verificação simples para forçar uma nova execução do CI.
+    public String getStatusAutenticacao() {
+        return color(titles.getString("status-autenticacao", "&7Aguardando autenticacao"));
+    }
 }
