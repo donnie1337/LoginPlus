@@ -6,39 +6,41 @@
 
     <groupId>com.authsystem</groupId>
     <artifactId>AuthSystem</artifactId>
-    <version>1.0.0</version>
+    <version>1.1.0</version>
     <packaging>jar</packaging>
     <name>AuthSystem</name>
-    <description>Plugin de login/registro para Spigot com deteccao automatica de contas originais.</description>
+    <description>Hybrid premium/cracked authentication for Spigot.</description>
 
     <properties>
-        <!-- Minecraft 26.x exige Java 25 para RODAR o servidor.
-             Para COMPILAR o plugin, 21 garante bytecode compativel
-             (roda numa JVM 25 sem problemas). Troque para 25 se preferir
-             compilar exatamente na mesma versao do servidor. -->
         <maven.compiler.release>21</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
     <repositories>
-        <!-- Repositorio oficial do Spigot (nao esta no Maven Central) -->
         <repository>
             <id>spigot-repo</id>
             <url>https://hub.spigotmc.org/nexus/content/repositories/snapshots/</url>
         </repository>
+        <repository>
+            <id>codemc-repo</id>
+            <url>https://repo.codemc.io/repository/maven-public/</url>
+        </repository>
     </repositories>
 
     <dependencies>
-        <!--
-            IMPORTANTE: o Spigot nao pode redistribuir esse jar pronto
-            (por causa do licenciamento da Mojang). Antes de compilar,
-            voce precisa gerar esse artefato localmente rodando o
-            BuildTools.jar UMA vez (instrucoes no README.md).
-        -->
         <dependency>
             <groupId>org.spigotmc</groupId>
             <artifactId>spigot-api</artifactId>
             <version>26.2-R0.1-SNAPSHOT</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- PacketEvents 2.13.0 adds Minecraft 26.2 support and is used only for
+             the login handshake. Install PacketEvents 2.13.0+ in plugins/. -->
+        <dependency>
+            <groupId>com.github.retrooper</groupId>
+            <artifactId>packetevents-spigot</artifactId>
+            <version>2.13.0</version>
             <scope>provided</scope>
         </dependency>
     </dependencies>
