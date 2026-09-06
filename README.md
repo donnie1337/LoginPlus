@@ -1,69 +1,144 @@
-# AuthSystem — Login/Registro híbrido para Spigot 26.2
+# AuthSystem — Plugin de Login/Registro para Spigot 26.2
 
-Plugin de autenticação híbrida para servidores `online-mode=false`:
+Plugin de autenticação com `/login` e `/registro`. Contas **originais
+(premium)** são detectadas automaticamente e não precisam logar nem se
+registrar; contas **piratas (cracked)** ficam "congeladas" (sem mover,
+falar no chat, quebrar/colocar blocos, tomar dano, etc.) até efetuarem
+login ou registro.
 
-- **Conta premium:** a entrada automática acontece somente depois de uma prova criptográfica de posse da sessão Mojang.
-- **Conta cracked:** entra no fluxo normal de `/login` ou `/registro`.
-- Usar o nick de outra conta premium **não é suficiente** para ganhar login automático.
+## Estrutura do projeto
 
-## Como a autenticação premium funciona
-
-O plugin não confia apenas na existência do nick na Mojang e não depende de uma consulta prévia ao nome para decidir se o jogador é premium.
-
-1. O cliente envia `LOGIN_START`.
-2. O plugin pausa o processamento normal desse pacote e envia um `Encryption Request` com uma chave RSA e um token aleatório.
-3. Um cliente que consegue responder ao desafio envia o segredo AES e o token criptografados.
-4. O plugin valida o token, ativa AES/CFB8 e calcula o `serverId/hash` do protocolo Minecraft.
-5. O plugin consulta `sessionserver.mojang.com/session/minecraft/hasJoined`.
-6. Só se a Mojang confirmar a sessão daquele cliente o jogador recebe o status premium e entra automaticamente.
-7. Se a Mojang não confirmar a sessão, o plugin continua o mesmo login como cracked.
-8. Se um cliente cracked não responder ao `Encryption Request`, após um pequeno timeout o plugin também continua o login normal como cracked.
-
-Isso evita falsos positivos por nome, evita depender da API pública de consulta de nomes e permite que premium e cracked usem o mesmo servidor `online-mode=false`.
-
-## Dependência obrigatória
-
-O AuthSystem usa **PacketEvents 2.13.0+** para interceptar o handshake de login. A versão 2.13.0 adicionou suporte ao Minecraft 26.2.
-
-Instale `packetevents-spigot-2.13.0.jar` na pasta `plugins/` antes de iniciar o servidor.
-
-O `plugin.yml` declara PacketEvents como dependência obrigatória.
-
-## Servidor
-
-Para aceitar premium e cracked no mesmo servidor:
-
-```properties
-online-mode=false
+```
+AuthSystem/
+├── pom.xml
+├── README.md
+└── src/main/
+    ├── java/com/authsystem/
+    │   ├── AuthSystem.java          (classe principal)
+    │   ├── commands/
+    │   │   ├── LoginCommand.java
+    │   │   └── RegisterCommand.java
+    │   ├── listeners/
+    │   │   ├── AuthListener.java        (fluxo principal: congela jogador, detecta premium)
+    │   │   └── AntiBypassListener.java  (bloqueia formas indiretas de burlar o congelamento)
+    │   ├── manager/
+    │   │   ├── PlayerDataManager.java  (salva senhas com hash em playerdata.yml)
+    │   │   ├── SessionManager.java     (estado em memória: logado, premium, etc.)
+    │   │   └── LoginProtection.java    (bloqueio por IP após senhas erradas em excesso)
+    │   └── util/
+    │       ├── PasswordUtils.java   (hash PBKDF2 + salt)
+    │       └── PremiumChecker.java  (consulta a API da Mojang)
+    └── resources/
+        ├── plugin.yml
+        └── config.yml
 ```
 
-Não use proxy para o sistema de autenticação.
+## ⚠️ Passo obrigatório antes de compilar: gerar o spigot-api local
 
-## Comandos
+A Mojang não permite que o Spigot redistribua o jar da API já pronto.
+Por isso, antes de rodar `mvn package`, você precisa gerar esse artefato
+localmente **uma vez**, usando o BuildTools oficial:
 
-| Comando | Descrição |
-|---|---|
-| `/login <senha>` | Faz login numa conta cracked já registrada |
-| `/registro <senha> <confirmar-senha>` | Cria uma conta cracked |
+```bash
+# 1. Baixe o BuildTools.jar (link sempre atualizado em spigotmc.org):
+#    https://www.spigotmc.org/wiki/buildtools/
 
-## Proteção de login
+# 2. Rode, pedindo exatamente a versão 26.2:
+java -jar BuildTools.jar --rev 26.2
 
-Jogadores não autenticados ficam congelados e não podem usar comandos, chat, interação, quebra/colocação de blocos, dano ou outras formas comuns de bypass.
+# Isso instala automaticamente o spigot-api-26.2-R0.1-SNAPSHOT.jar
+# no seu repositório Maven local (~/.m2/repository).
+```
 
-Tentativas incorretas são controladas por IP conforme `config.yml`.
+Isso baixa e compila os arquivos da Mojang/Spigot — então você precisa
+de internet liberada para os domínios do Mojang/Spigot/Maven nesse passo
+(não dá pra fazer isso num ambiente sem acesso à internet).
 
-## Compilação
+Java necessário: o Minecraft/Spigot 26.x exige **Java 25** para RODAR o
+servidor. Para compilar o BuildTools e o plugin, use também uma JDK 21+
+(recomendo instalar a 25 para ficar tudo alinhado).
 
-Java 21+ para compilar o plugin e Java 25 para executar o servidor 26.x.
+## Compilando o plugin
 
-Depois de instalar/gerar as dependências:
+Depois do passo acima, dentro da pasta `AuthSystem/`:
 
 ```bash
 mvn clean package
 ```
 
-O JAR final será criado em:
+O arquivo gerado fica em `target/AuthSystem.jar`. Copie esse `.jar` para
+a pasta `plugins/` do seu servidor Spigot e reinicie.
 
-```text
-target/AuthSystem.jar
+## Configuração do servidor
+
+No `server.properties`, deixe:
+
+```
+online-mode=false
+```
+
+Isso é o que permite tanto contas piratas (que passam por /login e
+/registro) quanto contas originais entrarem no mesmo servidor. Se
+`online-mode=true`, só quem tem conta original consegue nem conectar —
+nesse caso o plugin não teria função alguma, pois o próprio Minecraft
+já garante que 100% dos jogadores são donos legítimos da conta.
+
+## Sobre a detecção de conta original — leia isso
+
+A checagem de "é premium ou não" (classe `PremiumChecker`) funciona
+consultando a API pública da Mojang para saber se aquele **nome de
+usuário** pertence a uma conta original. É a abordagem mais simples e
+comum em plugins desse tipo, mas tem uma limitação importante: como o
+servidor roda em `offline-mode`, essa checagem **não prova
+criptograficamente** que quem está conectando agora é o dono de fato
+daquela conta — ela só confirma que aquele nick *existe* como conta
+paga na Mojang. Em teoria, alguém poderia digitar o nick de outra
+pessoa e ser tratado como "original".
+
+Se você quiser uma verificação realmente à prova de falsificação, a
+forma correta é reimplementar o handshake de autenticação da Mojang
+(reproduzindo o que o online-mode faz internamente), o que normalmente
+é feito com **ProtocolLib** interceptando os pacotes de criptografia do
+login — é exatamente assim que plugins prontos como o **FastLogin**
+funcionam. Isso é bem mais complexo e foge do escopo de um plugin
+simples; se quiser, posso te ajudar a implementar essa versão avançada
+depois.
+
+## Sistema anti-bypass
+
+Três camadas trabalham juntas para impedir que alguém contorne o login:
+
+1. **Congelamento (`AuthListener`)** — enquanto não autenticado, o jogador
+   não anda, não fala no chat, não usa comandos além de `/login` e
+   `/registro`, não quebra/coloca blocos, não toma dano nem perde fome.
+2. **Proteções indiretas (`AntiBypassListener`)** — cobre formas menos
+   óbvias de escapar do congelamento: teleporte, abrir baús/inventários,
+   montar em cavalo/barco, interagir com entidades, atirar flechas/itens,
+   comer, mobs mirando no jogador, e o próprio jogador causando dano em algo.
+3. **Bloqueio por senha errada (`LoginProtection`)** — é a parte que você
+   pediu: se errar a senha mais vezes do que `max-tentativas-login`
+   permite (padrão: 3 erros, expulso no 4º), o jogador é desconectado.
+
+   O importante aqui: a contagem de erros é feita **por endereço IP**, não
+   pela sessão do jogador. Isso fecha a brecha mais óbvia de bypass — sem
+   isso, bastaria a pessoa se desconectar e reconectar repetidamente para
+   "zerar" o contador e continuar tentando senhas para sempre (força
+   bruta). Com o IP bloqueado por `bloqueio-apos-exceder-tentativas-minutos`
+   (padrão: 5 minutos), mesmo reconectando ela é barrada já no pré-login,
+   antes até de entrar no servidor.
+
+## Comandos
+
+| Comando | Descrição |
+|---|---|
+| `/login <senha>` | Faz login numa conta já registrada |
+| `/registro <senha> <confirmar-senha>` | Cria uma nova conta |
+
+## Configurações (`config.yml`)
+
+```yaml
+tempo-limite-login-segundos: 60             # tempo para logar antes do kick
+max-tentativas-login: 3                     # erros de senha permitidos antes do kick
+bloqueio-apos-exceder-tentativas-minutos: 5 # bloqueio de IP apos exceder o limite acima
+tamanho-minimo-senha: 4                     # tamanho minimo da senha no /registro
 ```
