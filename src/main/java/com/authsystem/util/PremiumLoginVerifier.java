@@ -15,6 +15,7 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 import javax.crypto.Cipher;
 
@@ -23,6 +24,7 @@ public final class PremiumLoginVerifier {
     private static final Logger LOGGER = Logger.getLogger("AuthSystem");
     private static final int RSA_KEY_SIZE = 2048;
     private static final int MAX_MOJANG_RESPONSE_BYTES = 16 * 1024;
+    private static final long MOJANG_TIMEOUT_SECONDS = 8L;
     private final KeyPair keyPair;
     private final SecureRandom random = new SecureRandom();
     private final ConcurrentHashMap<String, Pending> pending = new ConcurrentHashMap<>();
@@ -37,24 +39,19 @@ public final class PremiumLoginVerifier {
         }
     }
 
-    public java.security.PublicKey getPublicKey() {
-        return keyPair.getPublic();
-    }
+    public java.security.PublicKey getPublicKey() { return keyPair.getPublic(); }
 
+    /** Inicia um desafio apenas se a conexao ainda nao possuir outro desafio pendente. */
     public byte[] start(String connectionKey, String username) {
         byte[] token = new byte[4];
         random.nextBytes(token);
-        pending.put(connectionKey, new Pending(username, token));
-        return token;
+        Pending novo = new Pending(username, token);
+        return pending.putIfAbsent(connectionKey, novo) == null ? token : null;
     }
 
-    public boolean hasPending(String connectionKey) {
-        return pending.containsKey(connectionKey);
-    }
+    public boolean hasPending(String connectionKey) { return pending.containsKey(connectionKey); }
 
-    public void remove(String connectionKey) {
-        pending.remove(connectionKey);
-    }
+    public void remove(String connectionKey) { pending.remove(connectionKey); }
 
     public byte[] decrypt(byte[] encrypted) throws GeneralSecurityException {
         Cipher cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding");
@@ -62,12 +59,9 @@ public final class PremiumLoginVerifier {
         return cipher.doFinal(encrypted);
     }
 
-    /** Valida o token enviado pelo cliente sem consumir a sessao pendente. */
     public boolean validateToken(String connectionKey, byte[] encryptedToken) {
         Pending p = pending.get(connectionKey);
-        if (p == null || encryptedToken == null) {
-            return false;
-        }
+        if (p == null || encryptedToken == null) return false;
         try {
             byte[] token = decrypt(encryptedToken);
             return MessageDigest.isEqual(token, p.verifyToken());
@@ -82,7 +76,8 @@ public final class PremiumLoginVerifier {
         if (p == null || sharedSecret == null || sharedSecret.length != 16) {
             return CompletableFuture.completedFuture(Optional.empty());
         }
-        return CompletableFuture.supplyAsync(() -> {
+
+        CompletableFuture<Optional<UUID>> request = CompletableFuture.supplyAsync(() -> {
             try {
                 String serverHash = serverHash(sharedSecret);
                 LOGGER.info("Verificando conta premium " + p.username() + " na Mojang (serverId=" + serverHash + ")");
@@ -92,6 +87,14 @@ public final class PremiumLoginVerifier {
                 return Optional.empty();
             }
         });
+
+        // O timeout e do fluxo de autenticacao, independentemente do estado da rede.
+        // Se a consulta continuar internamente, seu resultado sera ignorado pelo future.
+        return request.orTimeout(MOJANG_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                .exceptionally(error -> {
+                    LOGGER.warning("Timeout/falha na verificacao Mojang de " + p.username() + ". A conexao continuara como cracked.");
+                    return Optional.empty();
+                });
     }
 
     private String serverHash(byte[] sharedSecret) throws Exception {
@@ -108,8 +111,8 @@ public final class PremiumLoginVerifier {
                 + encodedName + "&serverId=" + encodedHash);
         HttpURLConnection connection = (HttpURLConnection) uri.toURL().openConnection();
         connection.setRequestMethod("GET");
-        connection.setConnectTimeout(10000);
-        connection.setReadTimeout(10000);
+        connection.setConnectTimeout(4000);
+        connection.setReadTimeout(4000);
         try {
             int status = connection.getResponseCode();
             if (status != 200) {
@@ -141,9 +144,7 @@ public final class PremiumLoginVerifier {
                     return Optional.empty();
                 }
                 int valueStart = colon + 1;
-                while (valueStart < body.length() && Character.isWhitespace(body.charAt(valueStart))) {
-                    valueStart++;
-                }
+                while (valueStart < body.length() && Character.isWhitespace(body.charAt(valueStart))) valueStart++;
                 if (valueStart >= body.length() || body.charAt(valueStart) != '"') {
                     LOGGER.warning("Resposta invalida da Mojang para " + username + ".");
                     return Optional.empty();
