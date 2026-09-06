@@ -30,19 +30,27 @@ jobs:
 
       - name: Validar JAR e configurações
         run: |
-          test -f target/AuthSystem.jar
-          unzip -l target/AuthSystem.jar | grep -q 'config.yml'
-          unzip -l target/AuthSystem.jar | grep -q 'plugin.yml'
-          unzip -l target/AuthSystem.jar | grep -q 'mensagens/titulos.yml'
-          unzip -p target/AuthSystem.jar config.yml | grep -Fq 'minimo-caracteres-senha: 7'
-          unzip -p target/AuthSystem.jar config.yml | grep -Fq 'maximo-caracteres-senha: 16'
-          unzip -p target/AuthSystem.jar config.yml | grep -Fq 'max-contas-por-ip: 1'
-          unzip -p target/AuthSystem.jar config.yml | grep -Fq 'max-ips-por-conta: 1'
-          if unzip -p target/AuthSystem.jar config.yml | grep -Fq 'tamanho-minimo-senha:'; then
+          JAR=$(find target -maxdepth 1 -type f -name '*.jar' ! -name '*original*' | head -n 1)
+          if [ -z "$JAR" ]; then
+            echo 'Nenhum JAR do plugin foi gerado em target/.'
+            echo 'Conteudo de target/:'
+            ls -la target/ || true
+            exit 1
+          fi
+
+          echo "Validando JAR: $JAR"
+          unzip -l "$JAR" | grep -q 'config.yml'
+          unzip -l "$JAR" | grep -q 'plugin.yml'
+          unzip -l "$JAR" | grep -q 'mensagens/titulos.yml'
+          unzip -p "$JAR" config.yml | grep -Fq 'minimo-caracteres-senha: 7'
+          unzip -p "$JAR" config.yml | grep -Fq 'maximo-caracteres-senha: 16'
+          unzip -p "$JAR" config.yml | grep -Fq 'max-contas-por-ip: 1'
+          unzip -p "$JAR" config.yml | grep -Fq 'max-ips-por-conta: 1'
+          if unzip -p "$JAR" config.yml | grep -Fq 'tamanho-minimo-senha:'; then
             echo 'Configuracao antiga tamanho-minimo-senha encontrada no JAR.'
             exit 1
           fi
-          unzip -p target/AuthSystem.jar plugin.yml | grep -Fq "version: '1.1.1'"
+          unzip -p "$JAR" plugin.yml | grep -Fq "version: '1.1.1'"
           grep -Fq 'password.length() > maxLength' src/main/java/com/authsystem/util/PasswordUtils.java
           grep -Fq 'max-contas-por-ip' src/main/java/com/authsystem/commands/RegisterCommand.java
           grep -Fq 'max-ips-por-conta' src/main/java/com/authsystem/manager/PlayerDataManager.java
