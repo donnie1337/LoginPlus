@@ -28,22 +28,31 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Logger;
 
 /** Desafio criptografico usado para verificar contas premium em servidor offline-mode. */
 public final class PremiumVerificationListener extends PacketListenerAbstract {
     private static final Logger LOGGER = Logger.getLogger("AuthSystem");
     private static final long FALLBACK_MS = 15000L;
+    private static final long CONNECTION_TTL_MS = 20000L;
     private final PremiumLoginVerifier verifier;
     private final PremiumAuthenticator authenticator;
     private final AuthSystem plugin;
+    private final int maxPendingGlobal;
+    private final int maxPendingPerIp;
+    private final AtomicInteger pendingGlobal = new AtomicInteger();
+    private final ConcurrentHashMap<String, AtomicInteger> pendingPerIp = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, PendingConnection> connections = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, BukkitTask> fallbackTasks = new ConcurrentHashMap<>();
 
-    public PremiumVerificationListener(AuthSystem plugin, PremiumLoginVerifier verifier, PremiumAuthenticator authenticator) {
+    public PremiumVerificationListener(AuthSystem plugin, PremiumLoginVerifier verifier, PremiumAuthenticator authenticator,
+                                       int maxPendingGlobal, int maxPendingPerIp) {
         this.plugin = plugin;
         this.verifier = verifier;
         this.authenticator = authenticator;
+        this.maxPendingGlobal = Math.max(1, maxPendingGlobal);
+        this.maxPendingPerIp = Math.max(1, maxPendingPerIp);
     }
 
     @Override
@@ -68,7 +77,6 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
             return;
         }
 
-        // O banco local sempre vem primeiro. Se o nickname ja possui conta, nao fazemos handshake premium.
         if (plugin.getPlayerDataManager().isRegistered(username)) {
             authenticator.clear(username, ip);
             event.setCancelled(true);
@@ -83,16 +91,25 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
             resume(user, version, username, playerUuid);
             return;
         }
+
         event.setCancelled(true);
+        if (!tryAcquirePending(ip)) {
+            LOGGER.fine("Limite de handshakes premium pendentes atingido para " + username + " (" + ip + "). Continuando como cracked.");
+            resume(user, version, username, playerUuid);
+            return;
+        }
+
         byte[] verifyToken = verifier.start(key, username);
         if (verifyToken == null) {
+            releasePending(ip);
             LOGGER.fine("Handshake premium duplicado ignorado para " + username + " (" + key + ").");
             return;
         }
 
-        PendingConnection pending = new PendingConnection(username, version, playerUuid, ip);
+        PendingConnection pending = new PendingConnection(username, version, playerUuid, ip, System.currentTimeMillis());
         if (connections.putIfAbsent(key, pending) != null) {
             verifier.remove(key);
+            releasePending(ip);
             LOGGER.warning("Reserva de conexao premium duplicada detectada para " + username + " (" + key + ").");
             return;
         }
@@ -103,6 +120,7 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
             fallbackTasks.remove(key);
             if (current != null) {
                 verifier.remove(key);
+                releasePending(current.ip());
                 resume(user, current.version(), current.username(), current.playerUuid());
             }
         }, FALLBACK_MS / 50L);
@@ -148,6 +166,7 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
 
         verifier.verify(key, sharedSecret).thenAccept(result -> plugin.getServer().getScheduler().runTask(plugin, () -> {
             if (!connections.remove(key, pending)) return;
+            releasePending(pending.ip());
             UUID mojangUuid = result.orElse(null);
             if (mojangUuid != null && pending.playerUuid() != null && mojangUuid.equals(pending.playerUuid())) {
                 authenticator.markVerified(pending.username(), pending.ip(), mojangUuid);
@@ -161,11 +180,49 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
         }));
     }
 
+    private boolean tryAcquirePending(String ip) {
+        while (true) {
+            int atual = pendingGlobal.get();
+            if (atual >= maxPendingGlobal) return false;
+            if (!pendingGlobal.compareAndSet(atual, atual + 1)) continue;
+            AtomicInteger porIp = pendingPerIp.computeIfAbsent(ip, ignored -> new AtomicInteger());
+            int ipAtual = porIp.incrementAndGet();
+            if (ipAtual <= maxPendingPerIp) return true;
+            porIp.decrementAndGet();
+            if (porIp.get() == 0) pendingPerIp.remove(ip, porIp);
+            pendingGlobal.decrementAndGet();
+            return false;
+        }
+    }
+
+    private void releasePending(String ip) {
+        pendingGlobal.updateAndGet(valor -> Math.max(0, valor - 1));
+        AtomicInteger porIp = pendingPerIp.get(ip);
+        if (porIp != null) {
+            int restante = porIp.updateAndGet(valor -> Math.max(0, valor - 1));
+            if (restante == 0) pendingPerIp.remove(ip, porIp);
+        }
+    }
+
+    public void cleanupExpired() {
+        long agora = System.currentTimeMillis();
+        connections.entrySet().removeIf(entry -> {
+            PendingConnection pending = entry.getValue();
+            if (agora - pending.createdAt() < CONNECTION_TTL_MS) return false;
+            BukkitTask task = fallbackTasks.remove(entry.getKey());
+            if (task != null) task.cancel();
+            verifier.remove(entry.getKey());
+            releasePending(pending.ip());
+            return true;
+        });
+    }
+
     private void failAndResume(String key, PendingConnection pending, User user) {
         BukkitTask fallback = fallbackTasks.remove(key);
         if (fallback != null) fallback.cancel();
         if (!connections.remove(key, pending)) return;
         verifier.remove(key);
+        releasePending(pending.ip());
         resume(user, pending.version(), pending.username(), pending.playerUuid());
     }
 
@@ -193,7 +250,7 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
         return host + ":" + user.getAddress().getPort();
     }
 
-    private record PendingConnection(String username, ClientVersion version, UUID playerUuid, String ip) {}
+    private record PendingConnection(String username, ClientVersion version, UUID playerUuid, String ip, long createdAt) {}
     private static final class AesCfb8Decoder extends MessageToMessageDecoder<ByteBuf> {
         private final Cipher cipher;
         private AesCfb8Decoder(Cipher cipher) { this.cipher = cipher; }
