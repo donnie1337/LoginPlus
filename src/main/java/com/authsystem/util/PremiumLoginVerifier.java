@@ -26,6 +26,7 @@ public final class PremiumLoginVerifier {
     private static final int RSA_KEY_SIZE = 2048;
     private static final int MAX_MOJANG_RESPONSE_BYTES = 16 * 1024;
     private static final long MOJANG_TIMEOUT_SECONDS = 8L;
+    private static final long PENDING_TTL_MS = 20_000L;
     private final KeyPair keyPair;
     private final SecureRandom random = new SecureRandom();
     private final ConcurrentHashMap<String, Pending> pending = new ConcurrentHashMap<>();
@@ -48,13 +49,19 @@ public final class PremiumLoginVerifier {
     public byte[] start(String connectionKey, String username) {
         byte[] token = new byte[4];
         random.nextBytes(token);
-        Pending novo = new Pending(username, token);
+        Pending novo = new Pending(username, token, System.currentTimeMillis());
         return pending.putIfAbsent(connectionKey, novo) == null ? token : null;
     }
 
     public boolean hasPending(String connectionKey) { return pending.containsKey(connectionKey); }
 
     public void remove(String connectionKey) { pending.remove(connectionKey); }
+
+    /** Remove desafios abandonados para impedir crescimento indefinido do mapa em conexoes maliciosas. */
+    public void cleanupExpired() {
+        long agora = System.currentTimeMillis();
+        pending.entrySet().removeIf(entry -> agora - entry.getValue().createdAt() >= PENDING_TTL_MS);
+    }
 
     public byte[] decrypt(byte[] encrypted) throws GeneralSecurityException {
         Cipher cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding");
@@ -96,15 +103,12 @@ public final class PremiumLoginVerifier {
             }
         });
 
-        // O slot permanece ocupado ate a requisicao HTTP real terminar, mesmo que o fluxo de autenticacao
-        // ja tenha atingido o timeout e seguido como cracked.
         if (verificacoesAtivas != null) request.whenComplete((result, error) -> verificacoesAtivas.release());
 
         CompletableFuture<Optional<UUID>> timeout = new CompletableFuture<>();
         CompletableFuture.delayedExecutor(MOJANG_TIMEOUT_SECONDS, TimeUnit.SECONDS)
                 .execute(() -> timeout.complete(Optional.empty()));
 
-        // Timeout do fluxo de autenticacao sem cancelar/alterar o future da requisicao real.
         return request.applyToEither(timeout, value -> value)
                 .exceptionally(error -> {
                     LOGGER.warning("Timeout/falha na verificacao Mojang de " + p.username() + ". A conexao continuara como cracked.");
@@ -185,5 +189,5 @@ public final class PremiumLoginVerifier {
         }
     }
 
-    private record Pending(String username, byte[] verifyToken) {}
+    private record Pending(String username, byte[] verifyToken, long createdAt) {}
 }
