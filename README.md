@@ -8,22 +8,22 @@ Plugin de autenticação híbrida para servidores `online-mode=false`:
 
 ## Como a autenticação premium funciona
 
-O plugin não confia mais apenas na existência do nick na Mojang.
+O plugin não confia apenas na existência do nick na Mojang e não depende de uma consulta prévia ao nome para decidir se o jogador é premium.
 
 1. O cliente envia `LOGIN_START`.
-2. O plugin consulta o nome apenas para decidir se vale a pena iniciar o desafio premium.
-3. Para um candidato premium, o plugin envia um `Encryption Request` com uma chave RSA e um token aleatório.
-4. O cliente premium responde com o segredo AES e o token criptografados.
-5. O plugin valida o token, ativa AES/CFB8 e calcula o `serverId/hash` do protocolo Minecraft.
-6. O plugin consulta o `sessionserver.mojang.com/hasJoined`.
-7. Só se a Mojang confirmar a sessão daquele cliente o jogador recebe o status premium e entra automaticamente.
-8. Se a sessão não for confirmada, o jogador continua como cracked e precisa de `/login` ou `/registro`.
+2. O plugin pausa o processamento normal desse pacote e envia um `Encryption Request` com uma chave RSA e um token aleatório.
+3. Um cliente que consegue responder ao desafio envia o segredo AES e o token criptografados.
+4. O plugin valida o token, ativa AES/CFB8 e calcula o `serverId/hash` do protocolo Minecraft.
+5. O plugin consulta `sessionserver.mojang.com/session/minecraft/hasJoined`.
+6. Só se a Mojang confirmar a sessão daquele cliente o jogador recebe o status premium e entra automaticamente.
+7. Se a Mojang não confirmar a sessão, o plugin continua o mesmo login como cracked.
+8. Se um cliente cracked não responder ao `Encryption Request`, após um pequeno timeout o plugin também continua o login normal como cracked.
 
-Portanto, um cliente cracked usando o nick de uma conta premium não consegue simplesmente passar pela checagem de nome.
+Isso evita falsos positivos por nome, evita depender da API pública de consulta de nomes e permite que premium e cracked usem o mesmo servidor `online-mode=false`.
 
 ## Dependência obrigatória
 
-O AuthSystem usa **PacketEvents 2.13.0+** para interceptar o handshake de login. A versão 2.13.0 adicionou suporte ao Minecraft 26.2 e também mantém compatibilidade com versões antigas suportadas pelo PacketEvents.
+O AuthSystem usa **PacketEvents 2.13.0+** para interceptar o handshake de login. A versão 2.13.0 adicionou suporte ao Minecraft 26.2.
 
 Instale `packetevents-spigot-2.13.0.jar` na pasta `plugins/` antes de iniciar o servidor.
 
