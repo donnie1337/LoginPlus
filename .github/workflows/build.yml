@@ -2,7 +2,7 @@ name: Build AuthSystem
 
 on:
   push:
-    branches: [main, seguranca-hardening, corrigir-autenticacao-premium]
+    branches: [main, corrigir-autenticacao-premium]
   pull_request:
 
 jobs:
