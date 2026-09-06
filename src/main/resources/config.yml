@@ -32,6 +32,12 @@ maximo-caracteres-senha: 16
 # Este limite nao impede o cadastro da conta; apenas a autenticacao/jogo.
 max-contas-por-ip: 1
 
+# Se true, uma nova conexao e recusada antes de entrar no servidor quando o
+# limite de contas autenticadas do IP ja estiver ocupado por outra conta.
+# Se false, a conexao entra normalmente, mas a autenticacao continuara sujeita
+# ao max-contas-por-ip (o jogador precisa aguardar uma vaga).
+bloquear-conexao-quando-limite-ip-atingido: true
+
 # ------------------------------------------------------------
 # LIMITE DE IPs POR CONTA
 # ------------------------------------------------------------
