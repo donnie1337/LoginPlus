@@ -52,6 +52,9 @@ public class AuthListener implements Listener {
         if (plugin.getPremiumAuthenticator().consumeVerified(player.getName(), ip) != null) {
             plugin.getSessionManager().markPremium(player.getUniqueId());
             plugin.getSessionManager().setAuthenticated(player, true);
+            enviarTitleAutenticacao(player,
+                    plugin.getMessagesManager().getTitleBemVindo(),
+                    "");
             player.sendMessage(ChatColor.GREEN + "Conta original verificada! Login automático realizado.");
             return;
         }
