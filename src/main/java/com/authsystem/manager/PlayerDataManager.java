@@ -13,7 +13,9 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Level;
 
 /** Guarda os dados de cadastro das contas, incluindo UUID, data de registro e IPs usados. */
@@ -22,6 +24,8 @@ public class PlayerDataManager {
 
     private final AuthSystem plugin;
     private final File file;
+    private final Object ioLock = new Object();
+    private final AtomicLong dataVersion = new AtomicLong();
     private FileConfiguration data;
     private boolean asyncSaveScheduled;
 
@@ -40,37 +44,60 @@ public class PlayerDataManager {
         data = YamlConfiguration.loadConfiguration(file);
     }
 
-    /** Salva imediatamente. Usado no desligamento para garantir durabilidade dos dados. */
-    public synchronized void save() {
-        try { data.save(file); }
-        catch (IOException e) { plugin.getLogger().log(Level.SEVERE, "Nao foi possivel salvar playerdata.yml", e); }
+    /** Salva imediatamente, serializando a escrita com qualquer save async em andamento. */
+    public void save() {
+        final String snapshot;
+        synchronized (this) { snapshot = data.saveToString(); }
+        synchronized (ioLock) {
+            try { Files.writeString(file.toPath(), snapshot, StandardCharsets.UTF_8); }
+            catch (IOException e) { plugin.getLogger().log(Level.SEVERE, "Nao foi possivel salvar playerdata.yml", e); }
+        }
     }
 
     /**
-     * Agenda uma persistencia sem bloquear a thread principal com I/O de disco.
-     * O snapshot YAML e criado sob lock e a escrita do arquivo ocorre em async.
+     * Agenda uma persistencia sem bloquear a thread principal com I/O.
+     * A escrita e serializada e usa versao para garantir que alteracoes feitas
+     * durante a gravacao gerem outra persistencia antes de encerrar o worker.
      */
     private synchronized void scheduleAsyncSave() {
+        dataVersion.incrementAndGet();
         if (asyncSaveScheduled) return;
         asyncSaveScheduled = true;
-        plugin.getServer().getScheduler().runTaskLaterAsynchronously(plugin, () -> {
-            final String snapshot;
-            synchronized (this) {
-                snapshot = data.saveToString();
-                asyncSaveScheduled = false;
-            }
-            try {
-                Files.writeString(file.toPath(), snapshot, StandardCharsets.UTF_8);
-            } catch (IOException e) {
-                plugin.getLogger().log(Level.SEVERE, "Nao foi possivel salvar playerdata.yml", e);
-            }
-        }, 1L);
+        plugin.getServer().getScheduler().runTaskLaterAsynchronously(plugin, this::flushAsync, 1L);
     }
 
-    private String key(String username) { return "players." + username.toLowerCase(); }
+    private void flushAsync() {
+        while (true) {
+            final String snapshot;
+            final long snapshotVersion;
+            synchronized (this) {
+                snapshot = data.saveToString();
+                snapshotVersion = dataVersion.get();
+            }
+
+            synchronized (ioLock) {
+                try {
+                    Files.writeString(file.toPath(), snapshot, StandardCharsets.UTF_8);
+                } catch (IOException e) {
+                    plugin.getLogger().log(Level.SEVERE, "Nao foi possivel salvar playerdata.yml", e);
+                    break;
+                }
+            }
+
+            synchronized (this) {
+                if (dataVersion.get() == snapshotVersion) {
+                    asyncSaveScheduled = false;
+                    return;
+                }
+            }
+        }
+
+        synchronized (this) { asyncSaveScheduled = false; }
+    }
+
+    private String key(String username) { return "players." + username.toLowerCase(Locale.ROOT); }
     public synchronized boolean isRegistered(String username) { return username != null && data.contains(key(username) + ".senha"); }
 
-    /** Snapshot imutavel dos dados necessarios para verificar uma senha fora da thread principal. */
     public synchronized PasswordData getPasswordData(String username) {
         if (username == null) return null;
         String base = key(username);
@@ -112,7 +139,6 @@ public class PlayerDataManager {
         return ips;
     }
 
-    /** Mantem a API antiga, mas o hash deve preferencialmente ser calculado fora da thread principal. */
     public synchronized boolean register(String username, String password, String ip, UUID uuid) {
         if (password == null) return false;
         String salt = PasswordUtils.generateSalt();
@@ -120,7 +146,6 @@ public class PlayerDataManager {
         return registerHashed(username, salt, hash, PasswordUtils.CURRENT_ITERATIONS, ip, uuid);
     }
 
-    /** Persiste um hash ja calculado; nao executa PBKDF2. Deve ser chamado na thread principal. */
     public synchronized boolean registerHashed(String username, String salt, String hash, int iterations, String ip, UUID uuid) {
         if (username == null || username.isBlank() || isRegistered(username) || ip == null || ip.isBlank()
                 || uuid == null || salt == null || hash == null || iterations < 1) return false;
@@ -136,7 +161,6 @@ public class PlayerDataManager {
         return true;
     }
 
-    /** Retained for callers that need a synchronous verification; login flow should use getPasswordData + async PBKDF2. */
     public synchronized boolean checkPassword(String username, String password) {
         PasswordData passwordData = getPasswordData(username);
         return passwordData != null && PasswordUtils.verify(password, passwordData.salt(), passwordData.hash(), passwordData.iterations());
@@ -146,7 +170,6 @@ public class PlayerDataManager {
         return data.getInt(key(username) + ".iteracoes", PasswordUtils.LEGACY_ITERATIONS) < PasswordUtils.CURRENT_ITERATIONS;
     }
 
-    /** Persiste um hash de upgrade ja calculado; nao executa PBKDF2. */
     public synchronized void upgradePasswordHash(String username, String salt, String hash, int iterations) {
         if (username == null || salt == null || hash == null || iterations < 1 || !isRegistered(username)) return;
         String base = key(username);
@@ -156,7 +179,6 @@ public class PlayerDataManager {
         scheduleAsyncSave();
     }
 
-    /** Mantem compatibilidade para chamadas existentes; o login nao deve usa-lo na thread principal. */
     public synchronized void upgradePassword(String username, String password) {
         if (password == null || !isRegistered(username)) return;
         String salt = PasswordUtils.generateSalt();
