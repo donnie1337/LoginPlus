@@ -13,7 +13,14 @@ max-tentativas-login: 3
 # depois de exceder o limite acima.
 bloqueio-apos-exceder-tentativas-minutos: 5
 
-# As senhas devem ter entre 7 e 16 caracteres e conter pelo menos uma letra e um numero.
+# Quantidade minima de caracteres permitida na senha.
+minimo-caracteres-senha: 7
+
+# Quantidade maxima de caracteres permitida na senha.
+maximo-caracteres-senha: 16
+
+# As senhas podem conter apenas letras e numeros, sem espacos ou caracteres especiais.
+# Tambem precisam ter pelo menos uma letra e um numero.
 
 # Quantas contas diferentes podem ser cadastradas pelo mesmo IP.
 # 1 = apenas uma conta por IP.
