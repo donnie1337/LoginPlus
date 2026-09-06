@@ -27,6 +27,7 @@ public class AuthSystem extends JavaPlugin {
     public void onEnable() {
         instance = this;
         saveDefaultConfig();
+        ensureConfigDefaults();
 
         this.playerDataManager = new PlayerDataManager(this);
         this.sessionManager = new SessionManager();
@@ -45,6 +46,19 @@ public class AuthSystem extends JavaPlugin {
                 new PremiumVerificationListener(this, premiumLoginVerifier, premiumAuthenticator));
 
         getLogger().info("AuthSystem ativado com autenticacao premium criptografica!");
+    }
+
+    private void ensureConfigDefaults() {
+        boolean changed = false;
+
+        if (!getConfig().contains("max-contas-por-ip")) {
+            getConfig().set("max-contas-por-ip", 1);
+            changed = true;
+        }
+
+        if (changed) {
+            saveConfig();
+        }
     }
 
     @Override
