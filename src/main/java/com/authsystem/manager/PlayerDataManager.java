@@ -2,7 +2,6 @@ package com.authsystem.manager;
 
 import com.authsystem.AuthSystem;
 import com.authsystem.util.PasswordUtils;
-import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 
@@ -12,13 +11,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Level;
 
-/**
- * Guarda os dados de cadastro (senha com hash + salt) em playerdata.yml,
- * dentro da pasta de dados do plugin. Simples e sem dependencias externas;
- * se o servidor crescer muito, considere migrar para SQLite/MySQL.
- */
+/** Guarda os dados de cadastro das contas e os IPs usados por cada conta. */
 public class PlayerDataManager {
-
     private final AuthSystem plugin;
     private final File file;
     private FileConfiguration data;
@@ -57,31 +51,7 @@ public class PlayerDataManager {
         return data.contains(key(username) + ".senha");
     }
 
-    /** Conta quantas contas cadastradas estao vinculadas ao IP informado. */
-    public synchronized int countAccountsForIp(String ip) {
-        if (ip == null || ip.isBlank()) {
-            return 0;
-        }
-
-        ConfigurationSection players = data.getConfigurationSection("players");
-        if (players == null) {
-            return 0;
-        }
-
-        int total = 0;
-        for (String username : players.getKeys(false)) {
-            List<String> ips = getIps(username);
-            if (ips.contains(ip)) {
-                total++;
-            }
-        }
-        return total;
-    }
-
-    /**
-     * Verifica se a conta pode ser utilizada a partir do IP informado.
-     * Mantem compatibilidade com contas antigas que possuem apenas o campo "ip".
-     */
+    /** Verifica se a conta pode ser usada a partir do IP informado. */
     public synchronized boolean canUseIp(String username, String ip, int limiteIps) {
         if (ip == null || ip.isBlank() || limiteIps <= 0) {
             return true;
@@ -94,7 +64,7 @@ public class PlayerDataManager {
         return ips.size() < limiteIps;
     }
 
-    /** Adiciona o IP a lista de IPs permitidos da conta, sem duplicar. */
+    /** Adiciona o IP a lista de IPs conhecidos da conta, sem duplicar. */
     public synchronized void addIp(String username, String ip) {
         if (ip == null || ip.isBlank()) {
             return;
@@ -107,14 +77,13 @@ public class PlayerDataManager {
             data.set(base + ".ips", ips);
         }
 
-        // Mantem o campo antigo para compatibilidade com dados ja existentes.
         if (!data.contains(base + ".ip")) {
             data.set(base + ".ip", ip);
         }
         save();
     }
 
-    /** Retorna todos os IPs conhecidos da conta, incluindo o formato antigo. */
+    /** Retorna os IPs conhecidos da conta, incluindo o formato antigo. */
     private List<String> getIps(String username) {
         String base = key(username);
         List<String> ips = new ArrayList<>();
@@ -133,10 +102,7 @@ public class PlayerDataManager {
         return ips;
     }
 
-    /**
-     * Registra a conta e aplica os limites configurados no servidor.
-     * A validacao aqui evita que futuras chamadas internas contornem as regras do comando.
-     */
+    /** Registra a conta e valida as regras de senha e os dados obrigatorios. */
     public synchronized boolean register(String username, String password, String ip) {
         if (username == null || username.isBlank() || isRegistered(username)) {
             return false;
@@ -148,15 +114,8 @@ public class PlayerDataManager {
             return false;
         }
 
-        int limiteContas = plugin.getConfig().getInt("max-contas-por-ip", 1);
-        if (limiteContas > 0) {
-            if (ip == null || ip.isBlank()) {
-                return false;
-            }
-
-            if (countAccountsForIp(ip) >= limiteContas) {
-                return false;
-            }
+        if (ip == null || ip.isBlank()) {
+            return false;
         }
 
         String salt = PasswordUtils.generateSalt();
@@ -164,9 +123,7 @@ public class PlayerDataManager {
         data.set(key(username) + ".senha", hash);
         data.set(key(username) + ".salt", salt);
         data.set(key(username) + ".ip", ip);
-        if (ip != null && !ip.isBlank()) {
-            data.set(key(username) + ".ips", List.of(ip));
-        }
+        data.set(key(username) + ".ips", List.of(ip));
         data.set(key(username) + ".registrado-em", System.currentTimeMillis());
         save();
         return true;
