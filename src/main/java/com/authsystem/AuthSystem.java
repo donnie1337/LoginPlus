@@ -14,7 +14,6 @@ import com.github.retrooper.packetevents.PacketEvents;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public class AuthSystem extends JavaPlugin {
-    private static AuthSystem instance;
     private PlayerDataManager playerDataManager;
     private SessionManager sessionManager;
     private LoginProtection loginProtection;
@@ -22,7 +21,6 @@ public class AuthSystem extends JavaPlugin {
 
     @Override
     public void onEnable() {
-        instance = this;
         saveDefaultConfig();
         ensureConfigDefaults();
 
@@ -59,9 +57,7 @@ public class AuthSystem extends JavaPlugin {
         getLogger().info("AuthSystem desativado.");
     }
 
-    public static AuthSystem getInstance() { return instance; }
     public PlayerDataManager getPlayerDataManager() { return playerDataManager; }
     public SessionManager getSessionManager() { return sessionManager; }
     public LoginProtection getLoginProtection() { return loginProtection; }
-    public PremiumAuthenticator getPremiumAuthenticator() { return premiumAuthenticator; }
 }
