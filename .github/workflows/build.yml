@@ -11,80 +11,40 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
-
       - name: Configurar Java 26
         uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '26'
           cache: maven
-
       - name: Baixar BuildTools
         run: curl -fsSL -o BuildTools.jar https://hub.spigotmc.org/jenkins/job/BuildTools/lastSuccessfulBuild/artifact/target/BuildTools.jar
-
       - name: Gerar Spigot
         run: java -jar BuildTools.jar --rev 26.2 --compile SPIGOT
-
       - name: Compilar plugin
         run: mvn -B clean package
-
       - name: Validar JAR e configuracoes
         run: |
           set -euo pipefail
-
           JAR=$(find target -maxdepth 1 -type f -name '*.jar' ! -name '*original*' -print -quit)
-          if [ -z "$JAR" ]; then
-            echo 'ERRO: nenhum JAR do plugin foi gerado em target/.'
-            ls -la target/ || true
-            exit 1
-          fi
-
-          echo "Validando JAR: $JAR"
+          test -n "$JAR"
           rm -rf /tmp/authsystem-jar
           mkdir -p /tmp/authsystem-jar
           unzip -q "$JAR" -d /tmp/authsystem-jar
-
           for arquivo in config.yml plugin.yml mensagens/titulos.yml; do
-            if [ ! -f "/tmp/authsystem-jar/$arquivo" ]; then
-              echo "ERRO: arquivo obrigatorio ausente no JAR: $arquivo"
-              find /tmp/authsystem-jar -maxdepth 3 -type f | sort
-              exit 1
-            fi
+            test -f "/tmp/authsystem-jar/$arquivo"
           done
-
-          validar_linha() {
-            arquivo="$1"
-            linha="$2"
-            if ! grep -F "$linha" "$arquivo" >/dev/null; then
-              echo "ERRO: linha esperada nao encontrada em $arquivo: $linha"
-              cat "$arquivo"
-              exit 1
-            fi
-          }
-
-          validar_linha /tmp/authsystem-jar/config.yml 'minimo-caracteres-senha: 7'
-          validar_linha /tmp/authsystem-jar/config.yml 'maximo-caracteres-senha: 16'
-          validar_linha /tmp/authsystem-jar/config.yml 'max-contas-por-ip: 1'
-          validar_linha /tmp/authsystem-jar/config.yml 'max-ips-por-conta: 1'
-          validar_linha /tmp/authsystem-jar/plugin.yml "version: '1.1.3'"
-
-          if grep -F 'tamanho-minimo-senha:' /tmp/authsystem-jar/config.yml >/dev/null; then
-            echo 'ERRO: configuracao antiga tamanho-minimo-senha nao deve existir no JAR.'
-            exit 1
-          fi
-
-          if grep -F 'max-contas-por-ip' src/main/java/com/authsystem/manager/PlayerDataManager.java >/dev/null; then
-            echo 'ERRO: max-contas-por-ip nao pode controlar o cadastro das contas.'
-            exit 1
-          fi
-
-          if ! grep -F 'tryRegisterAuthenticatedIp' src/main/java/com/authsystem/commands/LoginCommand.java >/dev/null; then
-            echo 'ERRO: limite de contas por IP nao esta sendo aplicado no /login.'
-            exit 1
-          fi
-
-          echo 'Validacao do JAR concluida com sucesso.'
-
+          grep -F 'minimo-caracteres-senha: 7' /tmp/authsystem-jar/config.yml >/dev/null
+          grep -F 'maximo-caracteres-senha: 16' /tmp/authsystem-jar/config.yml >/dev/null
+          grep -F 'max-contas-por-ip: 1' /tmp/authsystem-jar/config.yml >/dev/null
+          grep -F 'max-ips-por-conta: 1' /tmp/authsystem-jar/config.yml >/dev/null
+          grep -F 'max-verificacoes-mojang-por-minuto: 30' /tmp/authsystem-jar/config.yml >/dev/null
+          grep -F "version: '1.1.3'" /tmp/authsystem-jar/plugin.yml >/dev/null
+          ! grep -F 'tamanho-minimo-senha:' /tmp/authsystem-jar/config.yml >/dev/null
+          ! grep -F 'max-contas-por-ip' src/main/java/com/authsystem/manager/PlayerDataManager.java >/dev/null
+          grep -F 'tryRegisterAuthenticatedIp' src/main/java/com/authsystem/commands/LoginCommand.java >/dev/null
+          grep -F 'tryRegisterAuthenticatedIp' src/main/java/com/authsystem/listeners/AuthListener.java >/dev/null
+          grep -F 'podeConsultar' src/main/java/com/authsystem/listeners/PremiumVerificationListener.java >/dev/null
       - name: Publicar JAR do plugin
         uses: actions/upload-artifact@v4
         with:
