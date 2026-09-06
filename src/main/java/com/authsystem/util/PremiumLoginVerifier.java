@@ -125,19 +125,35 @@ public final class PremiumLoginVerifier {
             }
             try (InputStream input = connection.getInputStream()) {
                 String body = new String(input.readAllBytes(), StandardCharsets.UTF_8);
-                String marker = "\"id\":\"";
-                int start = body.indexOf(marker);
-                if (start < 0) {
+
+                // Mojang's JSON response may contain spaces around ':' (for example
+                // \"id\" : \"...\"). Do not depend on one exact JSON formatting.
+                String marker = "\"id\"";
+                int markerStart = body.indexOf(marker);
+                if (markerStart < 0) {
                     LOGGER.warning("Mojang respondeu sem UUID para " + username + ". Resposta recebida: " + body);
                     return Optional.empty();
                 }
-                start += marker.length();
-                int end = body.indexOf('"', start);
+                int colon = body.indexOf(':', markerStart + marker.length());
+                if (colon < 0) {
+                    LOGGER.warning("Resposta invalida da Mojang para " + username + ".");
+                    return Optional.empty();
+                }
+                int valueStart = colon + 1;
+                while (valueStart < body.length() && Character.isWhitespace(body.charAt(valueStart))) {
+                    valueStart++;
+                }
+                if (valueStart >= body.length() || body.charAt(valueStart) != '"') {
+                    LOGGER.warning("Resposta invalida da Mojang para " + username + ".");
+                    return Optional.empty();
+                }
+                valueStart++;
+                int end = body.indexOf('"', valueStart);
                 if (end < 0) {
                     LOGGER.warning("Resposta invalida da Mojang para " + username + ".");
                     return Optional.empty();
                 }
-                String raw = body.substring(start, end).replace("-", "").toLowerCase(Locale.ROOT);
+                String raw = body.substring(valueStart, end).replace("-", "").toLowerCase(Locale.ROOT);
                 if (!raw.matches("[0-9a-f]{32}")) {
                     LOGGER.warning("UUID invalido retornado pela Mojang para " + username + ".");
                     return Optional.empty();
