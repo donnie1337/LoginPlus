@@ -38,6 +38,8 @@ public class AuthSystem extends JavaPlugin {
     private MessagesManager messagesManager;
     private HashProcessingLimiter hashProcessingLimiter;
     private BukkitTask securityCleanupTask;
+    private PremiumLoginVerifier premiumLoginVerifier;
+    private RegisterCommand registerCommand;
 
     @Override
     public void onEnable() {
@@ -55,21 +57,20 @@ public class AuthSystem extends JavaPlugin {
         mojangRateLimiter = new MojangRateLimiter();
         messagesManager = new MessagesManager(this);
         hashProcessingLimiter = new HashProcessingLimiter();
-        PremiumLoginVerifier premiumLoginVerifier = new PremiumLoginVerifier(
+        premiumLoginVerifier = new PremiumLoginVerifier(
                 getConfig().getInt("seguranca.max-verificacoes-premium-simultaneas", DEFAULT_MAX_PREMIUM_CHECKS_CONCURRENT));
 
         getCommand("login").setExecutor(new LoginCommand(this));
-        RegisterCommand registerCommand = new RegisterCommand(this);
+        registerCommand = new RegisterCommand(this);
         getCommand("registro").setExecutor(registerCommand);
         getServer().getPluginManager().registerEvents(new AuthListener(this), this);
         getServer().getPluginManager().registerEvents(new AntiBypassListener(this), this);
         PacketEvents.getAPI().getEventManager().registerListener(new PremiumVerificationListener(this, premiumLoginVerifier, premiumAuthenticator));
 
-        // Limpa periodicamente entradas de rate limit que expiraram e evita crescimento de memoria
-        // quando um atacante usa muitos IPs/nicknames diferentes.
         securityCleanupTask = Bukkit.getScheduler().runTaskTimer(this, () -> {
             loginProtection.cleanupExpired();
             registerCommand.cleanupExpired();
+            premiumLoginVerifier.cleanupExpired();
         }, 20L * 60L, 20L * 60L);
 
         getLogger().info("AuthSystem ativado com autenticacao premium criptografica!");
