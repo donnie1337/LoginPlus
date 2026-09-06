@@ -51,6 +51,13 @@ public class AuthListener implements Listener {
                 : player.getAddress().getAddress().getHostAddress();
 
         if (plugin.getPremiumAuthenticator().consumeVerified(player.getName(), ip) != null) {
+            int limiteContas = plugin.getConfig().getInt("max-contas-por-ip", 1);
+            if (!plugin.getSessionManager().tryRegisterAuthenticatedIp(ip, player.getUniqueId(), limiteContas)) {
+                player.kickPlayer(ChatColor.RED + "Este IP já atingiu o limite de " + limiteContas
+                        + " conta(s) conectada(s) ao mesmo tempo.");
+                return;
+            }
+
             plugin.getSessionManager().markPremium(player.getUniqueId());
             plugin.getSessionManager().setAuthenticated(player, true);
             enviarTitleAutenticacao(player,
