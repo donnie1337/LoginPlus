@@ -11,6 +11,7 @@ import org.bukkit.entity.Player;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -55,8 +56,6 @@ public class RegisterCommand implements CommandExecutor {
         }
 
         String username = player.getName();
-        if (!permitirTentativaRegistro(player, ip, username)) return true;
-
         String senha = args[0];
         String confirmar = args[1];
         int minSenha = plugin.getConfig().getInt("minimo-caracteres-senha", PasswordUtils.DEFAULT_MIN_PASSWORD_LENGTH);
@@ -70,6 +69,8 @@ public class RegisterCommand implements CommandExecutor {
             player.sendMessage(ChatColor.RED + "As senhas não coincidem.");
             return true;
         }
+
+        if (!permitirTentativaRegistro(player, ip, username)) return true;
 
         UUID playerId = player.getUniqueId();
         if (!registrosEmAndamento.add(playerId)) {
@@ -146,11 +147,14 @@ public class RegisterCommand implements CommandExecutor {
         long agora = System.currentTimeMillis();
 
         if (maxTentativas > 0) {
-            if (!registrarEVerificarLimite(tentativasPorIp, ip, agora, janelaMs, maxTentativas)
-                    || !registrarEVerificarLimite(tentativasPorNome, username.toLowerCase(java.util.Locale.ROOT), agora, janelaMs, maxTentativas)) {
+            String chaveNome = username.toLowerCase(Locale.ROOT);
+            if (!podeRegistrar(tentativasPorIp, ip, agora, janelaMs, maxTentativas)
+                    || !podeRegistrar(tentativasPorNome, chaveNome, agora, janelaMs, maxTentativas)) {
                 player.sendMessage(ChatColor.RED + "Muitas tentativas de registro. Aguarde alguns minutos antes de tentar novamente.");
                 return false;
             }
+            registrarTentativa(tentativasPorIp, ip, agora, janelaMs);
+            registrarTentativa(tentativasPorNome, chaveNome, agora, janelaMs);
         }
 
         long cooldownMs = Math.max(0L, plugin.getConfig().getLong("registro.cooldown-segundos", 30)) * 1000L;
@@ -166,14 +170,21 @@ public class RegisterCommand implements CommandExecutor {
         return true;
     }
 
-    private boolean registrarEVerificarLimite(ConcurrentHashMap<String, Deque<Long>> mapa, String chave,
-                                               long agora, long janelaMs, int maxTentativas) {
+    private boolean podeRegistrar(ConcurrentHashMap<String, Deque<Long>> mapa, String chave,
+                                   long agora, long janelaMs, int maxTentativas) {
         Deque<Long> fila = mapa.computeIfAbsent(chave, ignored -> new ArrayDeque<>());
         synchronized (fila) {
             while (!fila.isEmpty() && agora - fila.peekFirst() >= janelaMs) fila.removeFirst();
-            if (fila.size() >= maxTentativas) return false;
+            return fila.size() < maxTentativas;
+        }
+    }
+
+    private void registrarTentativa(ConcurrentHashMap<String, Deque<Long>> mapa, String chave,
+                                    long agora, long janelaMs) {
+        Deque<Long> fila = mapa.computeIfAbsent(chave, ignored -> new ArrayDeque<>());
+        synchronized (fila) {
+            while (!fila.isEmpty() && agora - fila.peekFirst() >= janelaMs) fila.removeFirst();
             fila.addLast(agora);
-            return true;
         }
     }
 
