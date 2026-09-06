@@ -10,49 +10,26 @@
 # AUTENTICACAO
 # ------------------------------------------------------------
 
-# Tempo, em segundos, que o jogador tem para fazer /login ou /registro.
-# Ao atingir esse tempo sem autenticar, o jogador e expulso.
 tempo-limite-login-segundos: 60
-
-# Quantidade maxima de erros de senha permitidos no /login.
-# Exemplo: 3 permite 3 erros; no 4o erro o jogador e expulso
-# e o IP entra no bloqueio temporario configurado abaixo.
 max-tentativas-login: 3
-
-# Tempo, em minutos, que o IP fica bloqueado depois de ultrapassar
-# o limite de tentativas de login.
 bloqueio-apos-exceder-tentativas-minutos: 5
 
 # ------------------------------------------------------------
 # SENHA
 # ------------------------------------------------------------
 
-# Tamanho MINIMO da senha.
-# Edite este valor para definir o menor tamanho permitido.
-# Exemplo: 7 exige pelo menos 7 caracteres.
+# Tamanho minimo e maximo da senha. A senha aceita apenas letras e numeros.
 minimo-caracteres-senha: 7
-
-# Tamanho MAXIMO da senha.
-# Edite este valor para definir o maior tamanho permitido.
-# Exemplo: 16 impede senhas com mais de 16 caracteres.
 maximo-caracteres-senha: 16
 
 # ------------------------------------------------------------
 # CONTAS AUTENTICADAS POR IP
 # ------------------------------------------------------------
 
-# Quantas contas podem ficar AUTENTICADAS/JOGANDO ao mesmo tempo
-# usando o mesmo IP.
-# Esta regra vale para contas Minecraft ORIGINAL e PIRATA.
-#
-# 1 = somente uma conta jogando por IP.
-# 2 = ate duas contas jogando pelo mesmo IP.
-# 3 = ate tres contas jogando pelo mesmo IP.
-# 0 = sem limite.
-#
-# IMPORTANTE: este limite NAO bloqueia o cadastro.
-# Uma segunda conta pode ser cadastrada normalmente, mas so podera
-# autenticar/jogar quando houver uma vaga disponivel para aquele IP.
+# Quantas contas podem ficar AUTENTICADAS/JOGANDO ao mesmo tempo pelo mesmo IP.
+# Vale igualmente para Minecraft ORIGINAL e PIRATA.
+# 1 = uma conta; 2 = duas contas; 0 = ilimitado.
+# Este limite nao impede o cadastro da conta; apenas a autenticacao/jogo.
 max-contas-por-ip: 1
 
 # ------------------------------------------------------------
@@ -60,10 +37,15 @@ max-contas-por-ip: 1
 # ------------------------------------------------------------
 
 # Quantos IPs diferentes podem usar a mesma conta ao longo do tempo.
-#
-# 1 = a conta fica vinculada ao primeiro IP utilizado.
-# 2 = a conta pode usar ate dois IPs diferentes.
-# 3 = a conta pode usar ate tres IPs diferentes.
-# 0 = sem limite.
+# Para contas piratas, o controle fica no cadastro da conta.
+# Para contas originais, o controle fica separado por UUID da Mojang.
+# 1 = um IP; 2 = dois IPs; 0 = ilimitado.
 max-ips-por-conta: 1
 
+# ------------------------------------------------------------
+# VERIFICACAO PREMIUM
+# ------------------------------------------------------------
+
+# Quantas consultas a Session Server da Mojang cada IP pode fazer por minuto.
+# 0 = sem limite local.
+max-verificacoes-mojang-por-minuto: 30
