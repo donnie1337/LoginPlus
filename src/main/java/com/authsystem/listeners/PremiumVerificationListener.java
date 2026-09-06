@@ -1,5 +1,6 @@
 package com.authsystem.listeners;
 
+import com.authsystem.util.IpResolver;
 import com.authsystem.util.PremiumAuthenticator;
 import com.authsystem.util.PremiumLoginVerifier;
 import com.github.retrooper.packetevents.event.PacketListenerAbstract;
@@ -59,7 +60,13 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
         User user = event.getUser();
         ClientVersion version = user.getClientVersion();
         UUID playerUuid = packet.getPlayerUUID().orElse(null);
-        String ip = user.getAddress().getAddress().getHostAddress();
+        String ip = IpResolver.getUserIp(user);
+        if (ip == null) {
+            LOGGER.warning("Nao foi possivel identificar o IP durante o handshake premium de " + username + ". Continuando como cracked.");
+            event.setCancelled(true);
+            resume(user, version, username, playerUuid);
+            return;
+        }
 
         // O banco local sempre vem primeiro. Se o nickname ja possui conta, nao fazemos handshake premium.
         if (plugin.getPlayerDataManager().isRegistered(username)) {
@@ -70,6 +77,12 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
         }
 
         String key = connectionKey(user);
+        if (key == null) {
+            LOGGER.warning("Nao foi possivel criar a chave da conexao durante o handshake premium de " + username + ".");
+            event.setCancelled(true);
+            resume(user, version, username, playerUuid);
+            return;
+        }
         event.setCancelled(true);
         byte[] verifyToken = verifier.start(key, username);
         if (verifyToken == null) {
@@ -100,6 +113,7 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
     private void handleEncryptionResponse(PacketReceiveEvent event) {
         User user = event.getUser();
         String key = connectionKey(user);
+        if (key == null) return;
         PendingConnection pending = connections.get(key);
         if (pending == null || !verifier.hasPending(key)) return;
         BukkitTask fallback = fallbackTasks.remove(key);
@@ -175,7 +189,10 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
 
     private static String connectionKey(User user) {
         InetSocketAddress address = user.getAddress();
-        return address.getAddress().getHostAddress() + ":" + address.getPort();
+        if (address == null || address.getAddress() == null) return null;
+        String host = address.getAddress().getHostAddress();
+        if (host == null || host.isBlank()) return null;
+        return host + ":" + address.getPort();
     }
 
     private record PendingConnection(String username, ClientVersion version, UUID playerUuid, String ip) {}
