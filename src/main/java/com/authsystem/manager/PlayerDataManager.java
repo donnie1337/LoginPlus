@@ -2,6 +2,7 @@ package com.authsystem.manager;
 
 import com.authsystem.AuthSystem;
 import com.authsystem.util.PasswordUtils;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 
@@ -54,13 +55,38 @@ public class PlayerDataManager {
         return data.contains(key(username) + ".senha");
     }
 
-    public void register(String username, String password) {
+    /** Verifica se o IP ja esta vinculado a uma conta cadastrada. */
+    public boolean hasAccountForIp(String ip) {
+        if (ip == null || ip.isBlank()) {
+            return false;
+        }
+
+        ConfigurationSection players = data.getConfigurationSection("players");
+        if (players == null) {
+            return false;
+        }
+
+        for (String username : players.getKeys(false)) {
+            String contaIp = players.getString(username + ".ip");
+            if (ip.equals(contaIp)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public void register(String username, String password, String ip) {
         String salt = PasswordUtils.generateSalt();
         String hash = PasswordUtils.hash(password, salt);
         data.set(key(username) + ".senha", hash);
         data.set(key(username) + ".salt", salt);
+        data.set(key(username) + ".ip", ip);
         data.set(key(username) + ".registrado-em", System.currentTimeMillis());
         save();
+    }
+
+    public void register(String username, String password) {
+        register(username, password, null);
     }
 
     public boolean checkPassword(String username, String password) {
@@ -73,6 +99,7 @@ public class PlayerDataManager {
     }
 
     public void changePassword(String username, String newPassword) {
-        register(username, newPassword);
+        String ip = data.getString(key(username) + ".ip");
+        register(username, newPassword, ip);
     }
 }
