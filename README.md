@@ -36,12 +36,15 @@ Já as contas Cracked utilizam o fluxo tradicional de **registro + login**.
 | 🌐 **Limite de contas por IP** | Define quantas contas podem ser cadastradas pelo mesmo IP. |
 | 👤 **Limite de IPs por conta** | Define quantos IPs diferentes podem utilizar uma mesma conta. |
 | 🔑 **Senhas protegidas** | PBKDF2WithHmacSHA256 + salt aleatório. |
+| 🔒 **Regras de senha** | Senhas possuem tamanho mínimo e máximo configuráveis e exigem letras e números. |
 | 🚨 **Anti-força bruta** | Limite de tentativas e bloqueio temporário por IP. |
 | ⏱️ **Tempo limite** | Expulsa jogadores que não concluem a autenticação dentro do prazo. |
 | 🧊 **Congelamento** | Jogadores não autenticados ficam impedidos de realizar ações não autorizadas. |
 | 🏠 **Teleportes de plugins** | Teleportes causados por plugins continuam funcionando para spawn/lobby. |
 | 🎨 **Títulos configuráveis** | Mensagens de registro e login podem ser personalizadas. |
-| 💾 **Persistência** | Dados e limites de IP permanecem após reinicializações. |
+| 💾 **Persistência** | Dados das contas e limites de IP permanecem após reinicializações. |
+| 🔄 **Migração de configuração** | Configurações antigas de senha são atualizadas automaticamente para o novo sistema. |
+| 🤖 **Validação no build** | O GitHub Actions verifica o JAR e as configurações essenciais antes de considerar o build válido. |
 
 ---
 
@@ -70,18 +73,33 @@ Aliases:
 
 A senha precisa:
 
-- Ter **no mínimo 7 caracteres**;
-- Ter **no máximo 16 caracteres**;
+- Ter **no mínimo 7 caracteres** por padrão;
+- Ter **no máximo 16 caracteres** por padrão;
 - Conter pelo menos **uma letra**;
-- Conter pelo menos **um número**.
+- Conter pelo menos **um número**;
+- Conter somente **letras e números**;
+- Não possuir espaços ou caracteres especiais.
 
-Exemplo válido:
+Os limites mínimo e máximo podem ser alterados no `config.yml`.
+
+Exemplos:
 
 ```text
 MinhaSenha123
+Senha123
 ```
 
-> ⚠️ Uma senha com **17 caracteres ou mais deve ser recusada** pelo sistema.
+Exemplos inválidos:
+
+```text
+senha123       # menos de 7 caracteres
+MinhaSenha123456789 # mais de 16 caracteres
+12345678       # não possui letra
+MinhaSenha     # não possui número
+Senha@123      # possui caractere especial
+```
+
+> ⚠️ O plugin valida a senha tanto no comando de registro quanto no gerenciador de dados, evitando que chamadas internas contornem as regras configuradas.
 
 ---
 
@@ -202,6 +220,8 @@ bloqueio-apos-exceder-tentativas-minutos: 5
 
 Após exceder o número permitido de tentativas, o IP é temporariamente bloqueado.
 
+Isso evita que o jogador simplesmente desconecte e conecte novamente para zerar as tentativas.
+
 ---
 
 ## ⚙️ Configuração
@@ -218,25 +238,30 @@ Configuração padrão atual:
 tempo-limite-login-segundos: 60
 max-tentativas-login: 3
 bloqueio-apos-exceder-tentativas-minutos: 5
+minimo-caracteres-senha: 7
+maximo-caracteres-senha: 16
 max-contas-por-ip: 1
 max-ips-por-conta: 1
 ```
 
 ### Senhas
 
-O limite de senha é definido diretamente pelo plugin:
+O tamanho da senha é definido por:
 
-```text
-7 a 16 caracteres
-mínimo de uma letra
-mínimo de um número
+```yaml
+minimo-caracteres-senha: 7
+maximo-caracteres-senha: 16
 ```
 
-Não existem mais configurações separadas de tamanho mínimo ou máximo da senha no `config.yml`.
+Além do tamanho, o plugin exige pelo menos uma letra e um número e permite somente caracteres alfanuméricos ASCII.
 
-### Atualizações
+### Atualizações de configuração
 
-O AuthSystem preserva configurações já existentes e adiciona automaticamente novas configurações que ainda não estejam presentes no arquivo.
+O AuthSystem preserva as configurações já existentes e adiciona automaticamente novas configurações que ainda não estejam presentes no arquivo.
+
+Configurações antigas que foram substituídas também são migradas automaticamente. A opção antiga `tamanho-minimo-senha` é removida durante a inicialização e substituída pelas configurações `minimo-caracteres-senha` e `maximo-caracteres-senha`.
+
+Isso evita que um `config.yml` antigo continue usando regras de senha desatualizadas.
 
 ---
 
@@ -285,30 +310,29 @@ login: "&eFaça o login"
 AuthSystem/
 ├── pom.xml
 ├── README.md
-├── AuthSystem.iml
-└── src/main/
-    ├── java/com/authsystem/
-    │   ├── AuthSystem.java
-    │   ├── commands/
-    │   │   ├── LoginCommand.java
-    │   │   └── RegisterCommand.java
-    │   ├── listeners/
-    │   │   ├── AuthListener.java
-    │   │   ├── AntiBypassListener.java
-    │   │   └── PremiumVerificationListener.java
-    │   ├── manager/
-    │   │   ├── PlayerDataManager.java
-    │   │   ├── SessionManager.java
-    │   │   └── LoginProtection.java
-    │   └── util/
-    │       ├── PasswordUtils.java
-    │       ├── PremiumAuthenticator.java
-    │       └── PremiumLoginVerifier.java
-    └── resources/
-        ├── plugin.yml
-        ├── config.yml
-        └── mensagens/
-            └── titulos.yml
+├── src/main/
+│   ├── java/com/authsystem/
+│   │   ├── AuthSystem.java
+│   │   ├── commands/
+│   │   │   ├── LoginCommand.java
+│   │   │   └── RegisterCommand.java
+│   │   ├── listeners/
+│   │   │   ├── AuthListener.java
+│   │   │   ├── AntiBypassListener.java
+│   │   │   └── PremiumVerificationListener.java
+│   │   ├── manager/
+│   │   │   ├── PlayerDataManager.java
+│   │   │   ├── SessionManager.java
+│   │   │   └── LoginProtection.java
+│   │   └── util/
+│   │       ├── PasswordUtils.java
+│   │       ├── PremiumAuthenticator.java
+│   │       └── PremiumLoginVerifier.java
+│   └── resources/
+│       ├── plugin.yml
+│       ├── config.yml
+│       └── mensagens/
+│           └── titulos.yml
 ```
 
 ---
@@ -319,16 +343,20 @@ Principais mecanismos de segurança:
 
 - Verificação criptográfica de contas Premium;
 - Validação da sessão junto à Mojang;
-- Comparação da identidade Premium antes da liberação;
+- Validação da identidade Premium antes da liberação;
 - PBKDF2WithHmacSHA256 para armazenamento de senhas;
 - Salt aleatório por senha;
+- Comparação em tempo constante para credenciais e tokens sensíveis;
+- Regras configuráveis de tamanho de senha;
+- Restrição de senha a letras e números;
 - Limite de tentativas por IP;
 - Bloqueio temporário contra força bruta;
 - Limite de contas por IP;
 - Limite de IPs por conta;
 - Proteção contra bypass de autenticação;
 - Expiração das informações temporárias usadas na verificação Premium;
-- Estruturas concorrentes para gerenciamento das sessões online.
+- Estruturas concorrentes para gerenciamento das sessões online;
+- Validações repetidas no fluxo de registro para evitar contornos internos das regras.
 
 ---
 
@@ -342,14 +370,16 @@ O pipeline:
 2. Baixa o `BuildTools.jar`;
 3. Gera o **Spigot 26.2**;
 4. Compila o plugin com Maven;
-5. Verifica o JAR final;
-6. Valida a presença das configurações essenciais.
+5. Verifica se o JAR final foi gerado;
+6. Confere arquivos essenciais dentro do JAR;
+7. Valida as configurações padrão de senha e limites por IP;
+8. Garante que a configuração antiga `tamanho-minimo-senha` não permaneça no JAR.
 
 ---
 
 ## 📋 Requisitos
 
-- **Java 21+** para execução/compilação compatível com o projeto;
+- **Java 26** para o ambiente de build do projeto;
 - **Spigot/Paper** compatível com a API utilizada;
 - **PacketEvents 2.13.0+**.
 
