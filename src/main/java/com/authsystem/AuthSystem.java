@@ -48,23 +48,11 @@ public class AuthSystem extends JavaPlugin {
         getLogger().info("Limite de IPs por conta: " + getConfig().getInt("max-ips-por-conta", 1));
     }
 
+    /** Garante que todas as configuracoes padrao existam no config.yml do servidor. */
     private void ensureConfigDefaults() {
-        boolean alterado = false;
-
-        if (!getConfig().contains("max-contas-por-ip")) {
-            getConfig().set("max-contas-por-ip", 1);
-            alterado = true;
-        }
-
-        if (!getConfig().contains("max-ips-por-conta")) {
-            getConfig().set("max-ips-por-conta", 1);
-            alterado = true;
-        }
-
-        if (alterado) {
-            saveConfig();
-            reloadConfig();
-        }
+        getConfig().options().copyDefaults(true);
+        saveConfig();
+        reloadConfig();
     }
 
     @Override
