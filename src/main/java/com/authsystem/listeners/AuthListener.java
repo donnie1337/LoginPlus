@@ -39,6 +39,17 @@ public class AuthListener implements Listener {
         if (plugin.getLoginProtection().estaBloqueado(ip)) {
             long restante = plugin.getLoginProtection().segundosRestantes(ip);
             event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_OTHER, ChatColor.RED + "Muitas tentativas de login incorretas.\n" + ChatColor.RED + "Tente novamente em " + restante + " segundos.");
+            return;
+        }
+
+        if (plugin.getConfig().getBoolean("bloquear-conexao-quando-limite-ip-atingido", true)) {
+            int limiteContas = plugin.getConfig().getInt("max-contas-por-ip", 1);
+            if (limiteContas > 0
+                    && plugin.getSessionManager().countAuthenticatedFromIp(ip) >= limiteContas
+                    && plugin.getSessionManager().hasOtherAuthenticatedFromIp(ip, event.getUniqueId())) {
+                event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_OTHER,
+                        ChatColor.RED + "Este IP já atingiu o limite de " + limiteContas + " conta(s) autenticada(s) ao mesmo tempo. Aguarde uma vaga para entrar.");
+            }
         }
     }
 
