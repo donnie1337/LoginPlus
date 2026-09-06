@@ -51,6 +51,8 @@ public class AuthSystem extends JavaPlugin {
     private void ensureConfigDefaults() {
         boolean changed = false;
 
+        // Adiciona novas configuracoes apenas quando elas ainda nao existem.
+        // Assim, as configuracoes que o servidor ja possui continuam intactas.
         if (!getConfig().contains("max-contas-por-ip")) {
             getConfig().set("max-contas-por-ip", 1);
             changed = true;
