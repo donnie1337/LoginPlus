@@ -43,6 +43,13 @@ registro:
 # ------------------------------------------------------------
 
 seguranca:
+  # Numero de iteracoes do PBKDF2-HMAC-SHA256 usado em NOVOS hashes.
+  # Padrao: 10000, seguindo a configuracao desejada.
+  # Permitido: 100 a 10000.
+  # Valores maiores aumentam a resistencia contra ataques offline,
+  # mas tambem aumentam o uso de CPU por login/registro.
+  pbkdf2-iteracoes: 10000
+
   # Limita quantos PBKDF2 podem ser calculados ao mesmo tempo em /login e /registro.
   # Valores menores protegem mais a CPU; valores maiores permitem mais autenticacoes simultaneas.
   max-processamentos-pbkdf2-simultaneos: 2
