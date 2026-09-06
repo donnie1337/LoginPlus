@@ -65,7 +65,7 @@ public class AuthSystem extends JavaPlugin {
 
     /**
      * Adiciona apenas as opcoes que ainda nao existem, preservando configuracoes personalizadas.
-     * Se existir uma configuracao antiga, ela e migrada para as chaves atuais.
+     * Nunca remove nem migra opcoes antigas do arquivo existente.
      */
     private void ensureConfigDefaults() {
         getConfig().addDefault("tempo-limite-login-segundos", 60);
@@ -76,19 +76,7 @@ public class AuthSystem extends JavaPlugin {
         getConfig().addDefault("max-contas-por-ip", 1);
         getConfig().addDefault("max-ips-por-conta", 1);
 
-        // Migra servidores que ainda possuem a chave antiga sem alterar outras configuracoes.
-        if (getConfig().contains("tamanho-minimo-senha")) {
-            if (!getConfig().contains("minimo-caracteres-senha")) {
-                getConfig().set("minimo-caracteres-senha", PasswordUtils.DEFAULT_MIN_PASSWORD_LENGTH);
-            }
-            if (!getConfig().contains("maximo-caracteres-senha")) {
-                getConfig().set("maximo-caracteres-senha", PasswordUtils.DEFAULT_MAX_PASSWORD_LENGTH);
-            }
-            getConfig().set("tamanho-minimo-senha", null);
-            getLogger().info("Configuracao antiga 'tamanho-minimo-senha' migrada para as novas opcoes de senha.");
-        }
-
-        // copyDefaults(true) preenche somente o que estiver faltando no arquivo.
+        // copyDefaults(true) preenche somente as opcoes que estiverem faltando no arquivo.
         getConfig().options().copyDefaults(true);
         saveConfig();
     }
