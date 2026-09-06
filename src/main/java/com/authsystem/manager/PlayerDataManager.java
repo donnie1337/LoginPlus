@@ -133,7 +133,19 @@ public class PlayerDataManager {
         return ips;
     }
 
-    public void register(String username, String password, String ip) {
+    /**
+     * Registra uma conta somente se a senha respeitar todas as regras de seguranca.
+     * A validacao aqui evita que futuras chamadas internas contornem a validacao do comando.
+     */
+    public boolean register(String username, String password, String ip) {
+        if (username == null || username.isBlank() || isRegistered(username)) {
+            return false;
+        }
+
+        if (PasswordUtils.validatePassword(password) != null) {
+            return false;
+        }
+
         String salt = PasswordUtils.generateSalt();
         String hash = PasswordUtils.hash(password, salt);
         data.set(key(username) + ".senha", hash);
@@ -144,6 +156,7 @@ public class PlayerDataManager {
         }
         data.set(key(username) + ".registrado-em", System.currentTimeMillis());
         save();
+        return true;
     }
 
     public boolean checkPassword(String username, String password) {
