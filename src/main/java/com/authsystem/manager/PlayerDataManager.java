@@ -58,7 +58,7 @@ public class PlayerDataManager {
     }
 
     /** Conta quantas contas cadastradas estao vinculadas ao IP informado. */
-    public int countAccountsForIp(String ip) {
+    public synchronized int countAccountsForIp(String ip) {
         if (ip == null || ip.isBlank()) {
             return 0;
         }
@@ -82,7 +82,7 @@ public class PlayerDataManager {
      * Verifica se a conta pode ser utilizada a partir do IP informado.
      * Mantem compatibilidade com contas antigas que possuem apenas o campo "ip".
      */
-    public boolean canUseIp(String username, String ip, int limiteIps) {
+    public synchronized boolean canUseIp(String username, String ip, int limiteIps) {
         if (ip == null || ip.isBlank() || limiteIps <= 0) {
             return true;
         }
@@ -95,7 +95,7 @@ public class PlayerDataManager {
     }
 
     /** Adiciona o IP a lista de IPs permitidos da conta, sem duplicar. */
-    public void addIp(String username, String ip) {
+    public synchronized void addIp(String username, String ip) {
         if (ip == null || ip.isBlank()) {
             return;
         }
@@ -134,16 +134,28 @@ public class PlayerDataManager {
     }
 
     /**
-     * Registra uma conta somente se a senha respeitar todas as regras de seguranca.
+     * Registra uma conta somente se a senha respeitar todas as regras de seguranca
+     * e o limite de contas por IP configurado no servidor.
      * A validacao aqui evita que futuras chamadas internas contornem a validacao do comando.
      */
-    public boolean register(String username, String password, String ip) {
+    public synchronized boolean register(String username, String password, String ip) {
         if (username == null || username.isBlank() || isRegistered(username)) {
             return false;
         }
 
         if (PasswordUtils.validatePassword(password) != null) {
             return false;
+        }
+
+        int limiteContas = plugin.getConfig().getInt("max-contas-por-ip", 1);
+        if (limiteContas > 0) {
+            if (ip == null || ip.isBlank()) {
+                return false;
+            }
+
+            if (countAccountsForIp(ip) >= limiteContas) {
+                return false;
+            }
         }
 
         String salt = PasswordUtils.generateSalt();
