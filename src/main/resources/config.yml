@@ -38,9 +38,18 @@ registro:
   # 0 = sem cooldown.
   cooldown-segundos: 30
 
-  # Quantidade maxima de hashes PBKDF2 sendo processados ao mesmo tempo.
-  # Nao coloque um valor muito alto, pois o hash e intencionalmente pesado.
-  max-processamentos-simultaneos: 2
+# ------------------------------------------------------------
+# PROTECOES GLOBAIS CONTRA ABUSO
+# ------------------------------------------------------------
+
+seguranca:
+  # Limita quantos PBKDF2 podem ser calculados ao mesmo tempo em /login e /registro.
+  # Valores menores protegem mais a CPU; valores maiores permitem mais autenticacoes simultaneas.
+  max-processamentos-pbkdf2-simultaneos: 2
+
+  # Limita quantas verificacoes premium podem consultar a Mojang ao mesmo tempo.
+  # 0 = ilimitado (nao recomendado em servidores publicos).
+  max-verificacoes-premium-simultaneas: 4
 
 # ------------------------------------------------------------
 # CONTAS AUTENTICADAS POR IP
