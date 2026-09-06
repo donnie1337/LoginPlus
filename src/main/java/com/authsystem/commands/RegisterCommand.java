@@ -9,6 +9,9 @@ import org.bukkit.entity.Player;
 
 public class RegisterCommand implements CommandExecutor {
 
+    private static final int MIN_PASSWORD_LENGTH = 7;
+    private static final int MAX_PASSWORD_LENGTH = 16;
+
     private final AuthSystem plugin;
 
     public RegisterCommand(AuthSystem plugin) {
@@ -45,16 +48,13 @@ public class RegisterCommand implements CommandExecutor {
         String senha = args[0];
         String confirmar = args[1];
 
-        int tamanhoMinimo = Math.max(plugin.getConfig().getInt("tamanho-minimo-senha", 7), 7);
-        int tamanhoMaximo = Math.min(plugin.getConfig().getInt("tamanho-maximo-senha", 16), 16);
-
-        if (senha.length() < tamanhoMinimo) {
-            player.sendMessage(ChatColor.RED + "Sua senha precisa ter pelo menos " + tamanhoMinimo + " caracteres.");
+        if (senha.length() < MIN_PASSWORD_LENGTH) {
+            player.sendMessage(ChatColor.RED + "Sua senha precisa ter pelo menos " + MIN_PASSWORD_LENGTH + " caracteres.");
             return true;
         }
 
-        if (senha.length() > tamanhoMaximo) {
-            player.sendMessage(ChatColor.RED + "Sua senha pode ter no máximo " + tamanhoMaximo + " caracteres.");
+        if (senha.length() > MAX_PASSWORD_LENGTH) {
+            player.sendMessage(ChatColor.RED + "Sua senha pode ter no máximo " + MAX_PASSWORD_LENGTH + " caracteres.");
             return true;
         }
 
