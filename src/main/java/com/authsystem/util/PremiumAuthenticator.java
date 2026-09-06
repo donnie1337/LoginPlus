@@ -10,32 +10,42 @@ public final class PremiumAuthenticator {
     private final ConcurrentHashMap<String, VerifiedSession> verified = new ConcurrentHashMap<>();
 
     public void markVerified(String username, String ip, UUID mojangUuid) {
+        if (username == null || ip == null || mojangUuid == null) {
+            return;
+        }
         verified.put(key(username, ip), new VerifiedSession(mojangUuid, System.currentTimeMillis()));
     }
 
-    public UUID consumeVerified(String username, String ip, UUID clientUuid) {
+    /**
+     * Checks whether a premium proof is still valid without consuming it.
+     * The proof is consumed only when the player actually joins, avoiding a
+     * race between the initial and replayed AsyncPlayerPreLoginEvent.
+     */
+    public boolean isVerified(String username, String ip) {
+        VerifiedSession session = verified.get(key(username, ip));
+        if (session == null) {
+            return false;
+        }
+        if (System.currentTimeMillis() - session.timestamp() > VERIFIED_TTL_MS) {
+            verified.remove(key(username, ip), session);
+            return false;
+        }
+        return true;
+    }
+
+    /** Consumes the verified premium proof when the player has actually joined. */
+    public UUID consumeVerified(String username, String ip) {
         VerifiedSession session = verified.remove(key(username, ip));
         if (session == null || System.currentTimeMillis() - session.timestamp() > VERIFIED_TTL_MS) {
             return null;
         }
-
-        /*
-         * IMPORTANT: the server is running with online-mode=false.
-         * In this mode AsyncPlayerPreLoginEvent#getUniqueId() is the server's
-         * offline UUID, while Mojang's hasJoined response contains the real
-         * premium UUID. Comparing the two UUIDs would therefore reject every
-         * correctly authenticated premium player.
-         *
-         * The premium identity is already cryptographically verified by the
-         * Encryption Response + verify token + Mojang hasJoined challenge.
-         * The username and IP are also bound to this short-lived verification
-         * entry, so the offline UUID must not be used as a second check here.
-         */
         return session.mojangUuid();
     }
 
     public void clear(String username, String ip) {
-        if (username != null && ip != null) verified.remove(key(username, ip));
+        if (username != null && ip != null) {
+            verified.remove(key(username, ip));
+        }
     }
 
     private static String key(String username, String ip) {
