@@ -10,7 +10,6 @@ import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
-import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -18,6 +17,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import javax.crypto.Cipher;
 
 /** Realiza o desafio criptografico usado para verificar contas premium. */
@@ -27,6 +28,7 @@ public final class PremiumLoginVerifier {
     private static final int MAX_MOJANG_RESPONSE_BYTES = 16 * 1024;
     private static final long MOJANG_TIMEOUT_SECONDS = 8L;
     private static final long PENDING_TTL_MS = 20_000L;
+    private static final Pattern MOJANG_UUID_PATTERN = Pattern.compile("\\\"id\\\"\\s*:\\s*\\\"([0-9a-fA-F-]{32,36})\\\"");
     private final KeyPair keyPair;
     private final SecureRandom random = new SecureRandom();
     private final ConcurrentHashMap<String, Pending> pending = new ConcurrentHashMap<>();
@@ -88,7 +90,7 @@ public final class PremiumLoginVerifier {
         }
 
         if (verificacoesAtivas != null && !verificacoesAtivas.tryAcquire()) {
-            LOGGER.warning("Limite global de verificacoes premium simultaneas atingido para " + p.username() + ". A conexao continuara como cracked.");
+            LOGGER.warning("Limite global de verificacoes premium simultaneas atingido para " + p.username() + ".");
             return CompletableFuture.completedFuture(Optional.empty());
         }
 
@@ -111,11 +113,15 @@ public final class PremiumLoginVerifier {
 
         return request.applyToEither(timeout, value -> value)
                 .exceptionally(error -> {
-                    LOGGER.warning("Timeout/falha na verificacao Mojang de " + p.username() + ". A conexao continuara como cracked.");
+                    LOGGER.warning("Timeout/falha na verificacao Mojang de " + p.username() + ".");
                     return Optional.empty();
                 });
     }
 
+    /**
+     * Calcula o serverId no formato assinado hexadecimal esperado pelo protocolo
+     * do Minecraft. BigInteger(byte[]) preserva a representacao signed two's-complement.
+     */
     private String serverHash(byte[] sharedSecret) throws Exception {
         MessageDigest digest = MessageDigest.getInstance("SHA-1");
         digest.update(sharedSecret);
@@ -132,11 +138,12 @@ public final class PremiumLoginVerifier {
         connection.setRequestMethod("GET");
         connection.setConnectTimeout(4000);
         connection.setReadTimeout(4000);
+        connection.setRequestProperty("User-Agent", "AuthSystem/1.1.3");
+        connection.setRequestProperty("Accept", "application/json");
         try {
             int status = connection.getResponseCode();
             if (status != 200) {
-                LOGGER.warning("Mojang hasJoined retornou HTTP " + status + " para " + username
-                        + ". A conta sera tratada como cracked.");
+                LOGGER.warning("Mojang hasJoined retornou HTTP " + status + " para " + username + ".");
                 return Optional.empty();
             }
             int contentLength = connection.getContentLength();
@@ -151,31 +158,13 @@ public final class PremiumLoginVerifier {
                     return Optional.empty();
                 }
                 String body = new String(bodyBytes, StandardCharsets.UTF_8);
-                String marker = "\"id\"";
-                int markerStart = body.indexOf(marker);
-                if (markerStart < 0) {
-                    LOGGER.warning("Mojang respondeu sem UUID para " + username + ".");
+                Matcher matcher = MOJANG_UUID_PATTERN.matcher(body);
+                if (!matcher.find()) {
+                    LOGGER.warning("Mojang respondeu sem UUID valido para " + username + ".");
                     return Optional.empty();
                 }
-                int colon = body.indexOf(':', markerStart + marker.length());
-                if (colon < 0) {
-                    LOGGER.warning("Resposta invalida da Mojang para " + username + ".");
-                    return Optional.empty();
-                }
-                int valueStart = colon + 1;
-                while (valueStart < body.length() && Character.isWhitespace(body.charAt(valueStart))) valueStart++;
-                if (valueStart >= body.length() || body.charAt(valueStart) != '"') {
-                    LOGGER.warning("Resposta invalida da Mojang para " + username + ".");
-                    return Optional.empty();
-                }
-                valueStart++;
-                int end = body.indexOf('"', valueStart);
-                if (end < 0) {
-                    LOGGER.warning("Resposta invalida da Mojang para " + username + ".");
-                    return Optional.empty();
-                }
-                String raw = body.substring(valueStart, end).replace("-", "").toLowerCase(Locale.ROOT);
-                if (!raw.matches("[0-9a-f]{32}")) {
+                String raw = matcher.group(1).replace("-", "");
+                if (!raw.matches("[0-9a-fA-F]{32}")) {
                     LOGGER.warning("UUID invalido retornado pela Mojang para " + username + ".");
                     return Optional.empty();
                 }
