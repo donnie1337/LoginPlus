@@ -17,9 +17,7 @@ public final class MojangRateLimiter {
         long agora = System.currentTimeMillis();
         Deque<Long> consultas = consultasPorIp.computeIfAbsent(ip, chave -> new ArrayDeque<>());
         synchronized (consultas) {
-            while (!consultas.isEmpty() && agora - consultas.peekFirst() >= JANELA_MS) {
-                consultas.removeFirst();
-            }
+            removerExpiradas(consultas, agora);
             if (consultas.size() >= limitePorMinuto) {
                 return false;
             }
@@ -31,6 +29,24 @@ public final class MojangRateLimiter {
     public void limpar(String ip) {
         if (ip != null) {
             consultasPorIp.remove(ip);
+        }
+    }
+
+    /** Remove entradas de IP que nao possuem consultas dentro da janela atual. */
+    public void cleanupExpired() {
+        long agora = System.currentTimeMillis();
+        consultasPorIp.entrySet().removeIf(entry -> {
+            Deque<Long> consultas = entry.getValue();
+            synchronized (consultas) {
+                removerExpiradas(consultas, agora);
+                return consultas.isEmpty();
+            }
+        });
+    }
+
+    private static void removerExpiradas(Deque<Long> consultas, long agora) {
+        while (!consultas.isEmpty() && agora - consultas.peekFirst() >= JANELA_MS) {
+            consultas.removeFirst();
         }
     }
 }
