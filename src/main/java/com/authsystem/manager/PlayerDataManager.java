@@ -18,7 +18,7 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Level;
 
-/** Guarda os dados de cadastro das contas, incluindo UUID, data de registro e IPs usados. */
+/** Guarda os dados de cadastro das contas, incluindo UUID, data de registro, IPs e identidade premium confirmada. */
 public class PlayerDataManager {
     private static final DateTimeFormatter FORMATO_REGISTRO = DateTimeFormatter.ofPattern("ddMMyyyyHH");
 
@@ -45,7 +45,6 @@ public class PlayerDataManager {
         data = YamlConfiguration.loadConfiguration(file);
     }
 
-    /** Fecha o agendamento async e grava o estado mais recente sem permitir que um snapshot antigo o sobrescreva. */
     public void shutdown() {
         synchronized (this) {
             shuttingDown = true;
@@ -54,7 +53,6 @@ public class PlayerDataManager {
         save();
     }
 
-    /** Salva imediatamente, serializando a escrita com qualquer save async em andamento. */
     public void save() {
         final String snapshot;
         synchronized (this) { snapshot = data.saveToString(); }
@@ -84,24 +82,19 @@ public class PlayerDataManager {
                 snapshot = data.saveToString();
                 snapshotVersion = dataVersion.get();
             }
-
             synchronized (ioLock) {
                 synchronized (this) {
-                    // O shutdown pode ter ocorrido enquanto este snapshot aguardava o lock de I/O.
-                    // Nesse caso, nunca permita que um snapshot antigo sobrescreva o save final.
                     if (shuttingDown) {
                         asyncSaveScheduled = false;
                         return;
                     }
                 }
-                try {
-                    Files.writeString(file.toPath(), snapshot, StandardCharsets.UTF_8);
-                } catch (IOException e) {
+                try { Files.writeString(file.toPath(), snapshot, StandardCharsets.UTF_8); }
+                catch (IOException e) {
                     plugin.getLogger().log(Level.SEVERE, "Nao foi possivel salvar playerdata.yml", e);
                     break;
                 }
             }
-
             synchronized (this) {
                 if (shuttingDown) {
                     asyncSaveScheduled = false;
@@ -113,12 +106,41 @@ public class PlayerDataManager {
                 }
             }
         }
-
         synchronized (this) { asyncSaveScheduled = false; }
     }
 
     private String key(String username) { return "players." + username.toLowerCase(Locale.ROOT); }
     public synchronized boolean isRegistered(String username) { return username != null && data.contains(key(username) + ".senha"); }
+
+    /** Retorna true quando o nickname ja foi confirmado como conta premium pela Mojang. */
+    public synchronized boolean isPremiumIdentity(String username) {
+        return username != null && data.getBoolean(key(username) + ".premium", false);
+    }
+
+    /** Retorna o UUID premium confirmado para o nickname. */
+    public synchronized UUID getPremiumUuid(String username) {
+        if (!isPremiumIdentity(username)) return null;
+        String value = data.getString(key(username) + ".premium-uuid");
+        if (value == null || value.isBlank()) return null;
+        try { return UUID.fromString(value); }
+        catch (IllegalArgumentException ignored) { return null; }
+    }
+
+    /** Marca o nickname como premium somente depois de uma verificacao criptografica bem-sucedida. */
+    public synchronized void markPremiumIdentity(String username, UUID uuid, String ip) {
+        if (username == null || username.isBlank() || uuid == null) return;
+        String base = key(username);
+        UUID existing = getPremiumUuid(username);
+        if (existing != null && !existing.equals(uuid)) {
+            plugin.getLogger().warning("Tentativa de associar UUID premium diferente ao nickname " + username + ". Operacao ignorada.");
+            return;
+        }
+        data.set(base + ".premium", true);
+        data.set(base + ".premium-uuid", uuid.toString());
+        if (ip != null && !ip.isBlank()) data.set(base + ".premium-ip", ip);
+        data.set(base + ".premium-verificado-em", FORMATO_REGISTRO.format(LocalDateTime.now()));
+        scheduleAsyncSave();
+    }
 
     public synchronized PasswordData getPasswordData(String username) {
         if (username == null) return null;
@@ -161,10 +183,6 @@ public class PlayerDataManager {
         return ips;
     }
 
-    /**
-     * Mantido por compatibilidade com a API interna. O fluxo normal de registro usa
-     * registerHashed(), que calcula PBKDF2 fora da thread principal.
-     */
     public synchronized boolean register(String username, String password, String ip, UUID uuid) {
         if (password == null) return false;
         String salt = PasswordUtils.generateSalt();
@@ -174,7 +192,7 @@ public class PlayerDataManager {
     }
 
     public synchronized boolean registerHashed(String username, String salt, String hash, int iterations, String ip, UUID uuid) {
-        if (username == null || username.isBlank() || isRegistered(username) || ip == null || ip.isBlank()
+        if (username == null || username.isBlank() || isRegistered(username) || isPremiumIdentity(username) || ip == null || ip.isBlank()
                 || uuid == null || salt == null || hash == null || iterations < 1) return false;
         String base = key(username);
         data.set(base + ".senha", hash);
@@ -197,7 +215,6 @@ public class PlayerDataManager {
         return data.getInt(key(username) + ".iteracoes", PasswordUtils.LEGACY_ITERATIONS) < plugin.getPasswordIterations();
     }
 
-    /** Atualiza o hash somente se a versão calculada for pelo menos tão forte quanto a atual. */
     public synchronized void upgradePasswordHash(String username, String salt, String hash, int iterations) {
         if (username == null || salt == null || hash == null || iterations < 1 || !isRegistered(username)) return;
         String base = key(username);
@@ -209,10 +226,6 @@ public class PlayerDataManager {
         scheduleAsyncSave();
     }
 
-    /**
-     * Mantido por compatibilidade. Para o fluxo de login, prefira upgradePasswordHash()
-     * com o PBKDF2 calculado assincronamente pelo comando.
-     */
     public synchronized void upgradePassword(String username, String password) {
         if (password == null || !isRegistered(username)) return;
         String salt = PasswordUtils.generateSalt();
