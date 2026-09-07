@@ -66,6 +66,11 @@ seguranca:
   # Evita concentracao de conexoes maliciosas em um unico endereco.
   max-handshakes-premium-por-ip: 3
 
+  # O que fazer quando a verificacao premium falhar ou a Mojang nao confirmar a sessao.
+  # cracked = continua a conexao e deixa o AuthSystem tratar como conta normal/cracked.
+  # kick = encerra a conexao antes do jogador entrar.
+  acao-falha-verificacao-premium: cracked
+
 # ------------------------------------------------------------
 # CONTAS AUTENTICADAS POR IP
 # ------------------------------------------------------------
