@@ -5,7 +5,6 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
-import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityPickupItemEvent;
 import org.bukkit.event.entity.EntityTargetEvent;
 import org.bukkit.event.entity.ProjectileLaunchEvent;
@@ -140,13 +139,6 @@ public class AntiBypassListener implements Listener {
     @EventHandler
     public void onPickupItem(EntityPickupItemEvent event) {
         if (event.getEntity() instanceof Player player && bloqueado(player)) {
-            event.setCancelled(true);
-        }
-    }
-
-    @EventHandler
-    public void onDamageByEntity(EntityDamageByEntityEvent event) {
-        if (event.getDamager() instanceof Player player && bloqueado(player)) {
             event.setCancelled(true);
         }
     }
