@@ -14,6 +14,7 @@ import com.github.retrooper.packetevents.wrapper.login.client.WrapperLoginClient
 import com.github.retrooper.packetevents.wrapper.login.client.WrapperLoginClientLoginStart;
 import com.github.retrooper.packetevents.wrapper.login.server.WrapperLoginServerEncryptionRequest;
 import io.netty.buffer.ByteBuf;
+import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPipeline;
 import io.netty.handler.codec.MessageToByteEncoder;
@@ -71,9 +72,9 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
         UUID playerUuid = packet.getPlayerUUID().orElse(null);
         String ip = IpResolver.getUserIp(user);
         if (ip == null || ip.isBlank()) {
-            LOGGER.warning("Nao foi possivel identificar o IP durante o handshake premium de " + username + ". Continuando como cracked.");
+            LOGGER.warning("Nao foi possivel identificar o IP durante o handshake premium de " + username + ".");
             event.setCancelled(true);
-            resume(user, version, username, playerUuid);
+            handleVerificationFailure(user, version, username, playerUuid, null, "IP indisponivel durante a verificacao premium.");
             return;
         }
 
@@ -88,14 +89,14 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
         if (key == null) {
             LOGGER.warning("Nao foi possivel criar a chave da conexao durante o handshake premium de " + username + ".");
             event.setCancelled(true);
-            resume(user, version, username, playerUuid);
+            handleVerificationFailure(user, version, username, playerUuid, null, "Chave da conexao indisponivel durante a verificacao premium.");
             return;
         }
 
         event.setCancelled(true);
         if (!tryAcquirePending(ip)) {
-            LOGGER.fine("Limite de handshakes premium pendentes atingido para " + username + " (" + ip + "). Continuando como cracked.");
-            resume(user, version, username, playerUuid);
+            LOGGER.fine("Limite de handshakes premium pendentes atingido para " + username + " (" + ip + ").");
+            handleVerificationFailure(user, version, username, playerUuid, ip, "Limite de verificacoes premium pendentes atingido.");
             return;
         }
 
@@ -111,6 +112,7 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
             verifier.remove(key);
             releasePending(ip);
             LOGGER.warning("Reserva de conexao premium duplicada detectada para " + username + " (" + key + ").");
+            handleVerificationFailure(user, version, username, playerUuid, ip, "Reserva de conexao premium duplicada.");
             return;
         }
 
@@ -121,7 +123,7 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
             if (current != null) {
                 verifier.remove(key);
                 releasePending(current.ip());
-                resume(user, current.version(), current.username(), current.playerUuid());
+                handleVerificationFailure(user, current.version(), current.username(), current.playerUuid(), current.ip(), "Tempo limite da verificacao premium excedido.");
             }
         }, FALLBACK_MS / 50L);
         fallbackTasks.put(key, fallback);
@@ -139,10 +141,10 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
         Optional<byte[]> encryptedToken = packet.getEncryptedVerifyToken();
         byte[] encryptedSecret = packet.getEncryptedSharedSecret();
         event.setCancelled(true);
-        if (encryptedToken.isEmpty() || encryptedSecret == null) { failAndResume(key, pending, user); return; }
+        if (encryptedToken.isEmpty() || encryptedSecret == null) { failAndHandle(key, pending, user, "Resposta de criptografia premium incompleta."); return; }
         if (!verifier.validateToken(key, encryptedToken.get())) {
             LOGGER.warning("Token de verificacao premium invalido para " + pending.username());
-            failAndResume(key, pending, user);
+            failAndHandle(key, pending, user, "Token de verificacao premium invalido.");
             return;
         }
 
@@ -153,14 +155,14 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
             enableEncryption(user.getChannel(), sharedSecret);
         } catch (GeneralSecurityException | IllegalArgumentException e) {
             LOGGER.warning("Nao foi possivel ativar a criptografia premium para " + pending.username() + ": " + e.getMessage());
-            failAndResume(key, pending, user);
+            failAndHandle(key, pending, user, "Falha ao ativar a criptografia da verificacao premium.");
             return;
         }
 
         int limiteConsultas = plugin.getConfig().getInt("max-verificacoes-mojang-por-minuto", 30);
         if (!plugin.getMojangRateLimiter().podeConsultar(pending.ip(), limiteConsultas)) {
-            LOGGER.warning("Limite de verificacoes Mojang atingido para o IP " + pending.ip() + ". " + pending.username() + " continuara como cracked.");
-            failAndResume(key, pending, user);
+            LOGGER.warning("Limite de verificacoes Mojang atingido para o IP " + pending.ip() + ".");
+            failAndHandle(key, pending, user, "Limite de verificacoes na Mojang atingido.");
             return;
         }
 
@@ -171,12 +173,14 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
             if (mojangUuid != null && pending.playerUuid() != null && mojangUuid.equals(pending.playerUuid())) {
                 authenticator.markVerified(pending.username(), pending.ip(), mojangUuid);
                 LOGGER.info("Identidade premium verificada para " + pending.username());
+                resume(user, pending.version(), pending.username(), pending.playerUuid());
             } else if (mojangUuid != null) {
-                LOGGER.warning("UUID da Mojang nao corresponde ao UUID enviado pelo cliente para " + pending.username() + ". Conexao tratada como cracked.");
+                LOGGER.warning("UUID da Mojang nao corresponde ao UUID enviado pelo cliente para " + pending.username() + ".");
+                handleVerificationFailure(user, pending.version(), pending.username(), pending.playerUuid(), pending.ip(), "UUID da Mojang nao corresponde ao cliente.");
             } else {
-                LOGGER.info("Sessao da Mojang nao confirmada para " + pending.username() + "; continuando como cracked.");
+                LOGGER.info("Sessao da Mojang nao confirmada para " + pending.username() + ".");
+                handleVerificationFailure(user, pending.version(), pending.username(), pending.playerUuid(), pending.ip(), "A Mojang nao confirmou esta sessao.");
             }
-            resume(user, pending.version(), pending.username(), pending.playerUuid());
         }));
     }
 
@@ -213,17 +217,31 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
             if (task != null) task.cancel();
             verifier.remove(entry.getKey());
             releasePending(pending.ip());
+            handleVerificationFailure(null, pending.version(), pending.username(), pending.playerUuid(), pending.ip(), "Conexao premium expirada.");
             return true;
         });
     }
 
-    private void failAndResume(String key, PendingConnection pending, User user) {
+    private void failAndHandle(String key, PendingConnection pending, User user, String reason) {
         BukkitTask fallback = fallbackTasks.remove(key);
         if (fallback != null) fallback.cancel();
         if (!connections.remove(key, pending)) return;
         verifier.remove(key);
         releasePending(pending.ip());
-        resume(user, pending.version(), pending.username(), pending.playerUuid());
+        handleVerificationFailure(user, pending.version(), pending.username(), pending.playerUuid(), pending.ip(), reason);
+    }
+
+    private void handleVerificationFailure(User user, ClientVersion version, String username, UUID playerUuid, String ip, String reason) {
+        String action = plugin.getPremiumFailureAction();
+        if ("kick".equals(action)) {
+            LOGGER.warning("Verificacao premium recusada para " + username + ": " + reason + " (acao=kick)");
+            if (user != null) {
+                Object rawChannel = user.getChannel();
+                if (rawChannel instanceof Channel channel) channel.close();
+            }
+            return;
+        }
+        if (user != null) resume(user, version, username, playerUuid);
     }
 
     private void resume(User user, ClientVersion version, String username, UUID playerUuid) {
