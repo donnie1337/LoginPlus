@@ -51,8 +51,6 @@ public class AuthSystem extends JavaPlugin {
         if (!arquivoConfig.exists()) saveDefaultConfig(); else reloadConfig();
         ensureConfigDefaults();
         validarConfiguracoes();
-        File titulosFile = new File(getDataFolder(), "mensagens", "titulos.yml");
-        if (!titulosFile.exists()) saveResource("mensagens/titulos.yml", false);
 
         playerDataManager = new PlayerDataManager(this);
         sessionManager = new SessionManager();
