@@ -1,108 +1,34 @@
 # ============================================================
 # CONFIGURACOES DO AUTHSYSTEM
-#
-# Edite os valores abaixo conforme o servidor.
-# Depois de alterar o arquivo no servidor, reinicie o plugin/servidor
-# para garantir que as novas configuracoes sejam carregadas.
 # ============================================================
-
-# ------------------------------------------------------------
-# AUTENTICACAO
-# ------------------------------------------------------------
 
 tempo-limite-login-segundos: 60
 max-tentativas-login: 3
 bloqueio-apos-exceder-tentativas-minutos: 5
 
-# ------------------------------------------------------------
-# SENHA
-# ------------------------------------------------------------
-
-# Tamanho minimo e maximo da senha. A senha aceita apenas letras e numeros.
 minimo-caracteres-senha: 7
 maximo-caracteres-senha: 16
 
-# ------------------------------------------------------------
-# PROTECAO DO REGISTRO
-# ------------------------------------------------------------
-
-# Limita quantas tentativas de /registro podem ser feitas pelo mesmo IP
-# e pelo mesmo nickname dentro da janela configurada.
-# 0 = sem limite de tentativas.
 registro:
   max-tentativas-por-ip: 3
   janela-minutos: 5
-
-  # Tempo minimo entre tentativas de registro do mesmo IP.
-  # Ajuda a evitar que o PBKDF2 seja usado para consumir CPU repetidamente.
-  # 0 = sem cooldown.
   cooldown-segundos: 30
 
-# ------------------------------------------------------------
-# PROTECOES GLOBAIS CONTRA ABUSO
-# ------------------------------------------------------------
-
 seguranca:
-  # Numero de iteracoes do PBKDF2-HMAC-SHA256 usado em NOVOS hashes.
-  # Padrao: 10000, seguindo a configuracao desejada.
-  # Permitido: 100 a 10000.
-  # Valores maiores aumentam a resistencia contra ataques offline,
-  # mas tambem aumentam o uso de CPU por login/registro.
   pbkdf2-iteracoes: 10000
-
-  # Limita quantos PBKDF2 podem ser calculados ao mesmo tempo em /login e /registro.
-  # Valores menores protegem mais a CPU; valores maiores permitem mais autenticacoes simultaneas.
   max-processamentos-pbkdf2-simultaneos: 2
-
-  # Limita quantas verificacoes premium podem consultar a Mojang ao mesmo tempo.
-  # 0 = ilimitado (nao recomendado em servidores publicos).
   max-verificacoes-premium-simultaneas: 4
-
-  # Limita quantos handshakes premium podem ficar pendentes globalmente.
-  # Evita que conexoes maliciosas consumam memoria mantendo desafios abertos.
   max-handshakes-premium-pendentes: 100
-
-  # Limita quantos handshakes premium podem ficar pendentes pelo mesmo IP.
-  # Evita concentracao de conexoes maliciosas em um unico endereco.
   max-handshakes-premium-por-ip: 3
 
-  # O que fazer quando a verificacao premium falhar ou a Mojang nao confirmar a sessao.
-  # cracked = continua a conexao e deixa o AuthSystem tratar como conta normal/cracked.
-  # kick = encerra a conexao antes do jogador entrar.
-  # IMPORTANTE: kick e o modo seguro contra takeover de nick premium durante
-  # indisponibilidade/falha da Mojang. cracked permite esse risco.
-  acao-falha-verificacao-premium: kick
+  # cracked = permite o fluxo normal de contas sem verificacao premium.
+  # kick = recusa falhas de verificacao premium que ainda nao estao protegidas.
+  # IMPORTANTE: depois que um nickname for confirmado como premium, a conta
+  # fica protegida permanentemente e uma falha de verificacao desse nickname
+  # sempre sera recusada com a mensagem de conta ja cadastrada como original.
+  acao-falha-verificacao-premium: cracked
 
-# ------------------------------------------------------------
-# CONTAS AUTENTICADAS POR IP
-# ------------------------------------------------------------
-
-# Quantas contas podem ficar AUTENTICADAS/JOGANDO ao mesmo tempo pelo mesmo IP.
-# Vale igualmente para Minecraft ORIGINAL e PIRATA.
-# 1 = uma conta; 2 = duas contas; 0 = ilimitado.
-# Este limite nao impede o cadastro da conta; apenas a autenticacao/jogo.
 max-contas-por-ip: 2
-
-# Se true, uma nova conexao e recusada antes de entrar no servidor quando o
-# limite de contas autenticadas do IP ja estiver ocupado por outra conta.
-# Se false, a conexao entra normalmente, mas a autenticacao continuara sujeita
-# ao max-contas-por-ip (o jogador precisa aguardar uma vaga).
 bloquear-conexao-quando-limite-ip-atingido: true
-
-# ------------------------------------------------------------
-# LIMITE DE IPs POR CONTA
-# ------------------------------------------------------------
-
-# Quantos IPs diferentes podem usar a mesma conta ao longo do tempo.
-# Para contas piratas, o controle fica no cadastro da conta.
-# Para contas originais, o controle fica separado por UUID da Mojang.
-# 1 = um IP; 2 = dois IPs; 0 = ilimitado.
 max-ips-por-conta: 1
-
-# ------------------------------------------------------------
-# VERIFICACAO PREMIUM
-# ------------------------------------------------------------
-
-# Quantas consultas a Session Server da Mojang cada IP pode fazer por minuto.
-# 0 = sem limite local.
 max-verificacoes-mojang-por-minuto: 30
