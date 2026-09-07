@@ -32,7 +32,7 @@ public class AuthSystem extends JavaPlugin {
     private static final int DEFAULT_MAX_PREMIUM_CHECKS_CONCURRENT = 4;
     private static final int DEFAULT_MAX_PENDING_PREMIUM_GLOBAL = 100;
     private static final int DEFAULT_MAX_PENDING_PREMIUM_PER_IP = 3;
-    private static final String DEFAULT_PREMIUM_FAILURE_ACTION = "kick";
+    private static final String DEFAULT_PREMIUM_FAILURE_ACTION = "cracked";
 
     private PlayerDataManager playerDataManager;
     private SessionManager sessionManager;
@@ -137,16 +137,12 @@ public class AuthSystem extends JavaPlugin {
         if (maxContasIp < 0) getConfig().set("max-contas-por-ip", DEFAULT_MAX_ACCOUNTS_PER_IP);
         if (maxIpsConta < 0) getConfig().set("max-ips-por-conta", DEFAULT_MAX_IPS_PER_ACCOUNT);
         if (maxConsultasMojang < 0) getConfig().set("max-verificacoes-mojang-por-minuto", DEFAULT_MAX_MOJANG_CHECKS_PER_MINUTE);
-        if (pbkdf2Iteracoes < PasswordUtils.MIN_ITERATIONS || pbkdf2Iteracoes > PasswordUtils.MAX_ITERATIONS) {
-            getConfig().set("seguranca.pbkdf2-iteracoes", PasswordUtils.DEFAULT_ITERATIONS);
-        }
+        if (pbkdf2Iteracoes < PasswordUtils.MIN_ITERATIONS || pbkdf2Iteracoes > PasswordUtils.MAX_ITERATIONS) getConfig().set("seguranca.pbkdf2-iteracoes", PasswordUtils.DEFAULT_ITERATIONS);
         if (maxPbkdf2 < 1) getConfig().set("seguranca.max-processamentos-pbkdf2-simultaneos", DEFAULT_MAX_PBKDF2_CONCURRENT);
         if (maxPremium < 1) getConfig().set("seguranca.max-verificacoes-premium-simultaneas", DEFAULT_MAX_PREMIUM_CHECKS_CONCURRENT);
         if (maxPendingGlobal < 1) getConfig().set("seguranca.max-handshakes-premium-pendentes", DEFAULT_MAX_PENDING_PREMIUM_GLOBAL);
         if (maxPendingPerIp < 1) getConfig().set("seguranca.max-handshakes-premium-por-ip", DEFAULT_MAX_PENDING_PREMIUM_PER_IP);
-        if (premiumFailureAction == null || (!premiumFailureAction.equalsIgnoreCase("cracked") && !premiumFailureAction.equalsIgnoreCase("kick"))) {
-            getConfig().set("seguranca.acao-falha-verificacao-premium", DEFAULT_PREMIUM_FAILURE_ACTION);
-        }
+        if (premiumFailureAction == null || (!premiumFailureAction.equalsIgnoreCase("cracked") && !premiumFailureAction.equalsIgnoreCase("kick"))) getConfig().set("seguranca.acao-falha-verificacao-premium", DEFAULT_PREMIUM_FAILURE_ACTION);
         saveConfig();
     }
 
@@ -159,26 +155,20 @@ public class AuthSystem extends JavaPlugin {
     }
 
     public int getPasswordIterations() {
-        return Math.max(PasswordUtils.MIN_ITERATIONS,
-                Math.min(PasswordUtils.MAX_ITERATIONS,
-                        getConfig().getInt("seguranca.pbkdf2-iteracoes", PasswordUtils.DEFAULT_ITERATIONS)));
+        return Math.max(PasswordUtils.MIN_ITERATIONS, Math.min(PasswordUtils.MAX_ITERATIONS,
+                getConfig().getInt("seguranca.pbkdf2-iteracoes", PasswordUtils.DEFAULT_ITERATIONS)));
     }
 
-    public int getLoginTimeoutSeconds() {
-        return Math.max(1, getConfig().getInt("tempo-limite-login-segundos", 60));
-    }
+    public int getLoginTimeoutSeconds() { return Math.max(1, getConfig().getInt("tempo-limite-login-segundos", 60)); }
 
     public String getPremiumFailureAction() {
         String action = getConfig().getString("seguranca.acao-falha-verificacao-premium", DEFAULT_PREMIUM_FAILURE_ACTION);
         if (action == null) return DEFAULT_PREMIUM_FAILURE_ACTION;
         action = action.trim().toLowerCase(Locale.ROOT);
-        return action.equals("kick") ? "kick" : DEFAULT_PREMIUM_FAILURE_ACTION;
+        return action.equals("kick") ? "kick" : "cracked";
     }
 
-    public boolean isAuthenticated(Player player) {
-        return player != null && sessionManager != null && sessionManager.isAuthenticated(player);
-    }
-
+    public boolean isAuthenticated(Player player) { return player != null && sessionManager != null && sessionManager.isAuthenticated(player); }
     public PlayerDataManager getPlayerDataManager() { return playerDataManager; }
     public SessionManager getSessionManager() { return sessionManager; }
     public LoginProtection getLoginProtection() { return loginProtection; }
