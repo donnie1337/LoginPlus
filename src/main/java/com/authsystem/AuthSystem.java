@@ -79,6 +79,7 @@ public class AuthSystem extends JavaPlugin {
             registerCommand.cleanupExpired();
             premiumLoginVerifier.cleanupExpired();
             premiumVerificationListener.cleanupExpired();
+            mojangRateLimiter.cleanupExpired();
         }, 20L * 60L, 20L * 60L);
 
         getLogger().info("AuthSystem ativado com autenticacao premium criptografica!");
@@ -154,6 +155,10 @@ public class AuthSystem extends JavaPlugin {
         return Math.max(PasswordUtils.MIN_ITERATIONS,
                 Math.min(PasswordUtils.MAX_ITERATIONS,
                         getConfig().getInt("seguranca.pbkdf2-iteracoes", PasswordUtils.DEFAULT_ITERATIONS)));
+    }
+
+    public int getLoginTimeoutSeconds() {
+        return Math.max(1, getConfig().getInt("tempo-limite-login-segundos", 60));
     }
 
     public boolean isAuthenticated(Player player) {
