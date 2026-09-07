@@ -69,7 +69,9 @@ seguranca:
   # O que fazer quando a verificacao premium falhar ou a Mojang nao confirmar a sessao.
   # cracked = continua a conexao e deixa o AuthSystem tratar como conta normal/cracked.
   # kick = encerra a conexao antes do jogador entrar.
-  acao-falha-verificacao-premium: cracked
+  # IMPORTANTE: kick e o modo seguro contra takeover de nick premium durante
+  # indisponibilidade/falha da Mojang. cracked permite esse risco.
+  acao-falha-verificacao-premium: kick
 
 # ------------------------------------------------------------
 # CONTAS AUTENTICADAS POR IP

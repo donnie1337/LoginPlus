@@ -32,7 +32,7 @@ public class AuthSystem extends JavaPlugin {
     private static final int DEFAULT_MAX_PREMIUM_CHECKS_CONCURRENT = 4;
     private static final int DEFAULT_MAX_PENDING_PREMIUM_GLOBAL = 100;
     private static final int DEFAULT_MAX_PENDING_PREMIUM_PER_IP = 3;
-    private static final String DEFAULT_PREMIUM_FAILURE_ACTION = "cracked";
+    private static final String DEFAULT_PREMIUM_FAILURE_ACTION = "kick";
 
     private PlayerDataManager playerDataManager;
     private SessionManager sessionManager;
