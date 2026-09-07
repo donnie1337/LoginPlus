@@ -22,6 +22,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitTask;
 
 import java.io.File;
+import java.util.Locale;
 
 public class AuthSystem extends JavaPlugin {
     private static final int DEFAULT_MAX_ACCOUNTS_PER_IP = 1;
@@ -31,6 +32,7 @@ public class AuthSystem extends JavaPlugin {
     private static final int DEFAULT_MAX_PREMIUM_CHECKS_CONCURRENT = 4;
     private static final int DEFAULT_MAX_PENDING_PREMIUM_GLOBAL = 100;
     private static final int DEFAULT_MAX_PENDING_PREMIUM_PER_IP = 3;
+    private static final String DEFAULT_PREMIUM_FAILURE_ACTION = "cracked";
 
     private PlayerDataManager playerDataManager;
     private SessionManager sessionManager;
@@ -91,6 +93,7 @@ public class AuthSystem extends JavaPlugin {
         getLogger().info("Limite global de verificacoes premium simultaneas: " + getConfig().getInt("seguranca.max-verificacoes-premium-simultaneas", DEFAULT_MAX_PREMIUM_CHECKS_CONCURRENT));
         getLogger().info("Limite global de handshakes premium pendentes: " + getConfig().getInt("seguranca.max-handshakes-premium-pendentes", DEFAULT_MAX_PENDING_PREMIUM_GLOBAL));
         getLogger().info("Limite de handshakes premium por IP: " + getConfig().getInt("seguranca.max-handshakes-premium-por-ip", DEFAULT_MAX_PENDING_PREMIUM_PER_IP));
+        getLogger().info("Falha na verificacao premium: " + getPremiumFailureAction());
     }
 
     private void ensureConfigDefaults() {
@@ -111,6 +114,7 @@ public class AuthSystem extends JavaPlugin {
         getConfig().addDefault("seguranca.max-verificacoes-premium-simultaneas", DEFAULT_MAX_PREMIUM_CHECKS_CONCURRENT);
         getConfig().addDefault("seguranca.max-handshakes-premium-pendentes", DEFAULT_MAX_PENDING_PREMIUM_GLOBAL);
         getConfig().addDefault("seguranca.max-handshakes-premium-por-ip", DEFAULT_MAX_PENDING_PREMIUM_PER_IP);
+        getConfig().addDefault("seguranca.acao-falha-verificacao-premium", DEFAULT_PREMIUM_FAILURE_ACTION);
         getConfig().options().copyDefaults(true);
         saveConfig();
     }
@@ -126,6 +130,7 @@ public class AuthSystem extends JavaPlugin {
         int maxPremium = getConfig().getInt("seguranca.max-verificacoes-premium-simultaneas", DEFAULT_MAX_PREMIUM_CHECKS_CONCURRENT);
         int maxPendingGlobal = getConfig().getInt("seguranca.max-handshakes-premium-pendentes", DEFAULT_MAX_PENDING_PREMIUM_GLOBAL);
         int maxPendingPerIp = getConfig().getInt("seguranca.max-handshakes-premium-por-ip", DEFAULT_MAX_PENDING_PREMIUM_PER_IP);
+        String premiumFailureAction = getConfig().getString("seguranca.acao-falha-verificacao-premium", DEFAULT_PREMIUM_FAILURE_ACTION);
 
         if (minimoSenha < 1) { minimoSenha = PasswordUtils.DEFAULT_MIN_PASSWORD_LENGTH; getConfig().set("minimo-caracteres-senha", minimoSenha); }
         if (maximoSenha < minimoSenha) { maximoSenha = Math.max(PasswordUtils.DEFAULT_MAX_PASSWORD_LENGTH, minimoSenha); getConfig().set("maximo-caracteres-senha", maximoSenha); }
@@ -139,6 +144,9 @@ public class AuthSystem extends JavaPlugin {
         if (maxPremium < 1) getConfig().set("seguranca.max-verificacoes-premium-simultaneas", DEFAULT_MAX_PREMIUM_CHECKS_CONCURRENT);
         if (maxPendingGlobal < 1) getConfig().set("seguranca.max-handshakes-premium-pendentes", DEFAULT_MAX_PENDING_PREMIUM_GLOBAL);
         if (maxPendingPerIp < 1) getConfig().set("seguranca.max-handshakes-premium-por-ip", DEFAULT_MAX_PENDING_PREMIUM_PER_IP);
+        if (premiumFailureAction == null || (!premiumFailureAction.equalsIgnoreCase("cracked") && !premiumFailureAction.equalsIgnoreCase("kick"))) {
+            getConfig().set("seguranca.acao-falha-verificacao-premium", DEFAULT_PREMIUM_FAILURE_ACTION);
+        }
         saveConfig();
     }
 
@@ -158,6 +166,13 @@ public class AuthSystem extends JavaPlugin {
 
     public int getLoginTimeoutSeconds() {
         return Math.max(1, getConfig().getInt("tempo-limite-login-segundos", 60));
+    }
+
+    public String getPremiumFailureAction() {
+        String action = getConfig().getString("seguranca.acao-falha-verificacao-premium", DEFAULT_PREMIUM_FAILURE_ACTION);
+        if (action == null) return DEFAULT_PREMIUM_FAILURE_ACTION;
+        action = action.trim().toLowerCase(Locale.ROOT);
+        return action.equals("kick") ? "kick" : DEFAULT_PREMIUM_FAILURE_ACTION;
     }
 
     public boolean isAuthenticated(Player player) {
