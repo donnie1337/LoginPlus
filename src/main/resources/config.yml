@@ -74,7 +74,7 @@ seguranca:
 # Vale igualmente para Minecraft ORIGINAL e PIRATA.
 # 1 = uma conta; 2 = duas contas; 0 = ilimitado.
 # Este limite nao impede o cadastro da conta; apenas a autenticacao/jogo.
-max-contas-por-ip: 1
+max-contas-por-ip: 2
 
 # Se true, uma nova conexao e recusada antes de entrar no servidor quando o
 # limite de contas autenticadas do IP ja estiver ocupado por outra conta.
