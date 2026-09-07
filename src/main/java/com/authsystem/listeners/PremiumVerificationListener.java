@@ -12,6 +12,7 @@ import com.github.retrooper.packetevents.protocol.player.ClientVersion;
 import com.github.retrooper.packetevents.protocol.player.User;
 import com.github.retrooper.packetevents.wrapper.login.client.WrapperLoginClientEncryptionResponse;
 import com.github.retrooper.packetevents.wrapper.login.client.WrapperLoginClientLoginStart;
+import com.github.retrooper.packetevents.wrapper.login.server.WrapperLoginServerDisconnect;
 import com.github.retrooper.packetevents.wrapper.login.server.WrapperLoginServerEncryptionRequest;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
@@ -19,6 +20,7 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPipeline;
 import io.netty.handler.codec.MessageToByteEncoder;
 import io.netty.handler.codec.MessageToMessageDecoder;
+import net.kyori.adventure.text.Component;
 import org.bukkit.scheduler.BukkitTask;
 
 import javax.crypto.Cipher;
@@ -37,6 +39,7 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
     private static final Logger LOGGER = Logger.getLogger("AuthSystem");
     private static final long FALLBACK_MS = 15000L;
     private static final long CONNECTION_TTL_MS = 20000L;
+    private static final String PREMIUM_ACCOUNT_MESSAGE = "Esta conta ja esta cadastrada no servidor como conta original. Entre usando o Minecraft original com este nickname.";
     private final PremiumLoginVerifier verifier;
     private final PremiumAuthenticator authenticator;
     private final AuthSystem plugin;
@@ -78,7 +81,9 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
             return;
         }
 
-        if (plugin.getPlayerDataManager().isRegistered(username)) {
+        // Uma conta premium ja confirmada precisa passar novamente pelo desafio criptografico.
+        // Isso impede que um cliente cracked use apenas o mesmo nickname para entrar.
+        if (plugin.getPlayerDataManager().isRegistered(username) && !plugin.getPlayerDataManager().isPremiumIdentity(username)) {
             authenticator.clear(username, ip);
             event.setCancelled(true);
             resume(user, version, username, playerUuid);
@@ -172,7 +177,8 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
             UUID mojangUuid = result.orElse(null);
             if (mojangUuid != null && pending.playerUuid() != null && mojangUuid.equals(pending.playerUuid())) {
                 authenticator.markVerified(pending.username(), pending.ip(), mojangUuid);
-                LOGGER.info("Identidade premium verificada para " + pending.username());
+                plugin.getPlayerDataManager().markPremiumIdentity(pending.username(), mojangUuid, pending.ip());
+                LOGGER.info("Identidade premium verificada e protegida para " + pending.username());
                 resume(user, pending.version(), pending.username(), pending.playerUuid());
             } else if (mojangUuid != null) {
                 LOGGER.warning("UUID da Mojang nao corresponde ao UUID enviado pelo cliente para " + pending.username() + ".");
@@ -232,16 +238,31 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
     }
 
     private void handleVerificationFailure(User user, ClientVersion version, String username, UUID playerUuid, String ip, String reason) {
+        boolean protectedPremium = plugin.getPlayerDataManager().isPremiumIdentity(username);
+        if (protectedPremium) {
+            LOGGER.warning("Acesso cracked recusado para a conta premium protegida " + username + ": " + reason);
+            disconnect(user, PREMIUM_ACCOUNT_MESSAGE);
+            return;
+        }
+
         String action = plugin.getPremiumFailureAction();
         if ("kick".equals(action)) {
             LOGGER.warning("Verificacao premium recusada para " + username + ": " + reason + " (acao=kick)");
-            if (user != null) {
-                Object rawChannel = user.getChannel();
-                if (rawChannel instanceof Channel channel) channel.close();
-            }
+            disconnect(user, "Nao foi possivel verificar sua conta premium. Tente novamente.");
             return;
         }
         if (user != null) resume(user, version, username, playerUuid);
+    }
+
+    private void disconnect(User user, String message) {
+        if (user == null) return;
+        try {
+            user.sendPacket(new WrapperLoginServerDisconnect(Component.text(message)));
+        } catch (Exception ignored) {
+            // Se o pacote de disconnect nao puder ser enviado, o fechamento do canal ainda protege a conta.
+        }
+        Object rawChannel = user.getChannel();
+        if (rawChannel instanceof Channel channel) channel.close();
     }
 
     private void resume(User user, ClientVersion version, String username, UUID playerUuid) {
