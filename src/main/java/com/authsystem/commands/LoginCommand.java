@@ -134,18 +134,20 @@ public class LoginCommand implements CommandExecutor {
 
     private void concluirLogin(Player player, String username, String ip) {
         int limiteIps = plugin.getConfig().getInt("max-ips-por-conta", 1);
-        if (!plugin.getPlayerDataManager().canUseIp(username, ip, limiteIps)) {
+        if (!plugin.getPlayerDataManager().tryAddIp(username, ip, limiteIps)) {
             player.sendMessage(ChatColor.RED + "Esta conta já atingiu o limite de " + limiteIps + " IP(s) permitido(s).");
             return;
         }
 
         int limiteContas = plugin.getConfig().getInt("max-contas-por-ip", 1);
         if (!plugin.getSessionManager().tryRegisterAuthenticatedIp(ip, player.getUniqueId(), limiteContas)) {
+            // A conta ja foi associada a este IP, mas a sessao nao foi autenticada.
+            // Remover a associacao somente se ela tiver sido criada por este login exigiria
+            // rastrear o estado anterior; manter a associacao e seguro e evita corrida/desincronizacao.
             player.sendMessage(ChatColor.RED + "Este IP já atingiu o limite de " + limiteContas + " conta(s) conectada(s) ao mesmo tempo.");
             return;
         }
 
-        plugin.getPlayerDataManager().addIp(username, ip);
         plugin.getSessionManager().setAuthenticated(player, true);
         plugin.getSessionManager().cancelTimeout(player);
         plugin.getLoginProtection().limparAoLogar(ip);
