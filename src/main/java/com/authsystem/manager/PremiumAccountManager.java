@@ -7,7 +7,9 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -18,6 +20,7 @@ import java.util.logging.Level;
 public final class PremiumAccountManager {
     private final AuthSystem plugin;
     private final File file;
+    private final File tempFile;
     private final Object ioLock = new Object();
     private final AtomicLong dataVersion = new AtomicLong();
     private FileConfiguration data;
@@ -27,6 +30,7 @@ public final class PremiumAccountManager {
     public PremiumAccountManager(AuthSystem plugin) {
         this.plugin = plugin;
         this.file = new File(plugin.getDataFolder(), "premiumdata.yml");
+        this.tempFile = new File(plugin.getDataFolder(), "premiumdata.yml.tmp");
         load();
     }
 
@@ -83,10 +87,11 @@ public final class PremiumAccountManager {
         return ips;
     }
 
-    /** Salva imediatamente e impede qualquer snapshot async antigo de sobrescrever o estado final. */
+    /** Salva imediatamente com troca atomica para evitar arquivo parcial apos crash. */
     public void shutdown() {
         synchronized (this) {
             shuttingDown = true;
+            dataVersion.incrementAndGet();
             asyncSaveScheduled = false;
         }
         save();
@@ -99,11 +104,22 @@ public final class PremiumAccountManager {
             snapshot = data.saveToString();
         }
         synchronized (ioLock) {
+            writeAtomically(snapshot);
+        }
+    }
+
+    private void writeAtomically(String snapshot) {
+        try {
+            Files.writeString(tempFile.toPath(), snapshot, StandardCharsets.UTF_8);
             try {
-                Files.writeString(file.toPath(), snapshot, StandardCharsets.UTF_8);
-            } catch (IOException e) {
-                plugin.getLogger().log(Level.SEVERE, "Nao foi possivel salvar premiumdata.yml", e);
+                Files.move(tempFile.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            } catch (AtomicMoveNotSupportedException e) {
+                Files.move(tempFile.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING);
             }
+        } catch (IOException e) {
+            plugin.getLogger().log(Level.SEVERE, "Nao foi possivel salvar premiumdata.yml", e);
+            try { Files.deleteIfExists(tempFile.toPath()); }
+            catch (IOException ignored) { }
         }
     }
 
@@ -136,12 +152,7 @@ public final class PremiumAccountManager {
                         return;
                     }
                 }
-                try {
-                    Files.writeString(file.toPath(), snapshot, StandardCharsets.UTF_8);
-                } catch (IOException e) {
-                    plugin.getLogger().log(Level.SEVERE, "Nao foi possivel salvar premiumdata.yml", e);
-                    break;
-                }
+                writeAtomically(snapshot);
             }
 
             synchronized (this) {
@@ -154,10 +165,6 @@ public final class PremiumAccountManager {
                     return;
                 }
             }
-        }
-
-        synchronized (this) {
-            asyncSaveScheduled = false;
         }
     }
 }
