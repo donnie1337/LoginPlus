@@ -35,6 +35,12 @@ public final class PremiumAuthenticator {
         }
     }
 
+    /** Remove provas premium que ultrapassaram o TTL. */
+    public void cleanupExpired() {
+        long now = System.currentTimeMillis();
+        verified.entrySet().removeIf(entry -> now - entry.getValue().timestamp() > VERIFIED_TTL_MS);
+    }
+
     private static String key(String username, String ip) {
         return username.toLowerCase(Locale.ROOT) + "|" + ip;
     }
