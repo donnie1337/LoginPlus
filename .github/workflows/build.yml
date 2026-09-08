@@ -1,4 +1,4 @@
-name: Build AuthSystem
+name: Build LoginPlus
 
 on:
   push:
@@ -28,20 +28,20 @@ jobs:
           set -euo pipefail
           JAR=$(find target -maxdepth 1 -type f -name '*.jar' ! -name '*original*' -print -quit)
           test -n "$JAR"
-          rm -rf /tmp/authsystem-jar
-          mkdir -p /tmp/authsystem-jar
-          unzip -q "$JAR" -d /tmp/authsystem-jar
+          rm -rf /tmp/loginplus-jar
+          mkdir -p /tmp/loginplus-jar
+          unzip -q "$JAR" -d /tmp/loginplus-jar
           for arquivo in config.yml plugin.yml mensagens/titulos.yml; do
-            test -f "/tmp/authsystem-jar/$arquivo"
+            test -f "/tmp/loginplus-jar/$arquivo"
           done
-          grep -F 'minimo-caracteres-senha: 7' /tmp/authsystem-jar/config.yml >/dev/null
-          grep -F 'maximo-caracteres-senha: 64' /tmp/authsystem-jar/config.yml >/dev/null
-          grep -F 'seguranca:' /tmp/authsystem-jar/config.yml >/dev/null
-          grep -F 'max-contas-por-ip: 2' /tmp/authsystem-jar/config.yml >/dev/null
-          grep -F 'max-ips-por-conta: 1' /tmp/authsystem-jar/config.yml >/dev/null
-          grep -F 'max-verificacoes-mojang-por-minuto: 30' /tmp/authsystem-jar/config.yml >/dev/null
-          grep -F "version: '1.1.3'" /tmp/authsystem-jar/plugin.yml >/dev/null
-          ! grep -F 'tamanho-minimo-senha:' /tmp/authsystem-jar/config.yml >/dev/null
+          grep -F 'minimo-caracteres-senha: 7' /tmp/loginplus-jar/config.yml >/dev/null
+          grep -F 'maximo-caracteres-senha: 64' /tmp/loginplus-jar/config.yml >/dev/null
+          grep -F 'seguranca:' /tmp/loginplus-jar/config.yml >/dev/null
+          grep -F 'max-contas-por-ip: 2' /tmp/loginplus-jar/config.yml >/dev/null
+          grep -F 'max-ips-por-conta: 1' /tmp/loginplus-jar/config.yml >/dev/null
+          grep -F 'max-verificacoes-mojang-por-minuto: 30' /tmp/loginplus-jar/config.yml >/dev/null
+          grep -F "version: '1.1.3'" /tmp/loginplus-jar/plugin.yml >/dev/null
+          ! grep -F 'tamanho-minimo-senha:' /tmp/loginplus-jar/config.yml >/dev/null
           ! grep -F 'max-contas-por-ip' src/main/java/com/authsystem/manager/PlayerDataManager.java >/dev/null
           grep -F 'tryRegisterAuthenticatedIp' src/main/java/com/authsystem/commands/LoginCommand.java >/dev/null
           grep -F 'tryRegisterAuthenticatedIp' src/main/java/com/authsystem/listeners/AuthListener.java >/dev/null
@@ -49,7 +49,7 @@ jobs:
       - name: Publicar JAR do plugin
         uses: actions/upload-artifact@v4
         with:
-          name: AuthSystem-1.1.3
+          name: LoginPlus-1.1.3
           path: target/*.jar
           if-no-files-found: error
           retention-days: 7
