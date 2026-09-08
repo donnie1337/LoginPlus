@@ -36,7 +36,7 @@ import java.util.logging.Logger;
 
 /** Desafio criptografico usado para verificar contas premium em servidor offline-mode. */
 public final class PremiumVerificationListener extends PacketListenerAbstract {
-    private static final Logger LOGGER = Logger.getLogger("AuthSystem");
+    private static final Logger LOGGER = Logger.getLogger("LoginPlus");
     private static final long FALLBACK_MS = 15000L;
     private static final long CONNECTION_TTL_MS = 20000L;
     private static final String PREMIUM_ACCOUNT_MESSAGE = "Esta conta ja esta cadastrada no servidor como conta original. Entre usando o Minecraft original com este nickname.";
@@ -81,8 +81,6 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
             return;
         }
 
-        // Uma conta premium ja confirmada precisa passar novamente pelo desafio criptografico.
-        // Isso impede que um cliente cracked use apenas o mesmo nickname para entrar.
         if (plugin.getPlayerDataManager().isRegistered(username) && !plugin.getPlayerDataManager().isPremiumIdentity(username)) {
             authenticator.clear(username, ip, playerUuid);
             event.setCancelled(true);
