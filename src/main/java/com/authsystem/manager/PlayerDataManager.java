@@ -8,7 +8,9 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -24,6 +26,7 @@ public class PlayerDataManager {
 
     private final AuthSystem plugin;
     private final File file;
+    private final File tempFile;
     private final Object ioLock = new Object();
     private final AtomicLong dataVersion = new AtomicLong();
     private FileConfiguration data;
@@ -33,6 +36,7 @@ public class PlayerDataManager {
     public PlayerDataManager(AuthSystem plugin) {
         this.plugin = plugin;
         this.file = new File(plugin.getDataFolder(), "playerdata.yml");
+        this.tempFile = new File(plugin.getDataFolder(), "playerdata.yml.tmp");
         load();
     }
 
@@ -56,9 +60,22 @@ public class PlayerDataManager {
     public void save() {
         final String snapshot;
         synchronized (this) { snapshot = data.saveToString(); }
-        synchronized (ioLock) {
-            try { Files.writeString(file.toPath(), snapshot, StandardCharsets.UTF_8); }
-            catch (IOException e) { plugin.getLogger().log(Level.SEVERE, "Nao foi possivel salvar playerdata.yml", e); }
+        synchronized (ioLock) { writeAtomically(snapshot); }
+    }
+
+    /** Grava o snapshot em arquivo temporario e troca o arquivo final de forma atomica sempre que suportado. */
+    private void writeAtomically(String snapshot) {
+        try {
+            Files.writeString(tempFile.toPath(), snapshot, StandardCharsets.UTF_8);
+            try {
+                Files.move(tempFile.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            } catch (AtomicMoveNotSupportedException e) {
+                Files.move(tempFile.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            }
+        } catch (IOException e) {
+            plugin.getLogger().log(Level.SEVERE, "Nao foi possivel salvar playerdata.yml", e);
+            try { Files.deleteIfExists(tempFile.toPath()); }
+            catch (IOException ignored) { }
         }
     }
 
@@ -89,11 +106,7 @@ public class PlayerDataManager {
                         return;
                     }
                 }
-                try { Files.writeString(file.toPath(), snapshot, StandardCharsets.UTF_8); }
-                catch (IOException e) {
-                    plugin.getLogger().log(Level.SEVERE, "Nao foi possivel salvar playerdata.yml", e);
-                    break;
-                }
+                writeAtomically(snapshot);
             }
             synchronized (this) {
                 if (shuttingDown) {
@@ -106,7 +119,6 @@ public class PlayerDataManager {
                 }
             }
         }
-        synchronized (this) { asyncSaveScheduled = false; }
     }
 
     private String key(String username) { return "players." + username.toLowerCase(Locale.ROOT); }
