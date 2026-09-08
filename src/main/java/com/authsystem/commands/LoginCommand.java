@@ -133,18 +133,16 @@ public class LoginCommand implements CommandExecutor {
     }
 
     private void concluirLogin(Player player, String username, String ip) {
-        int limiteIps = plugin.getConfig().getInt("max-ips-por-conta", 1);
-        if (!plugin.getPlayerDataManager().tryAddIp(username, ip, limiteIps)) {
-            player.sendMessage(ChatColor.RED + "Esta conta já atingiu o limite de " + limiteIps + " IP(s) permitido(s).");
+        int limiteContas = plugin.getConfig().getInt("max-contas-por-ip", 1);
+        if (!plugin.getSessionManager().tryRegisterAuthenticatedIp(ip, player.getUniqueId(), limiteContas)) {
+            player.sendMessage(ChatColor.RED + "Este IP já atingiu o limite de " + limiteContas + " conta(s) conectada(s) ao mesmo tempo.");
             return;
         }
 
-        int limiteContas = plugin.getConfig().getInt("max-contas-por-ip", 1);
-        if (!plugin.getSessionManager().tryRegisterAuthenticatedIp(ip, player.getUniqueId(), limiteContas)) {
-            // A conta ja foi associada a este IP, mas a sessao nao foi autenticada.
-            // Remover a associacao somente se ela tiver sido criada por este login exigiria
-            // rastrear o estado anterior; manter a associacao e seguro e evita corrida/desincronizacao.
-            player.sendMessage(ChatColor.RED + "Este IP já atingiu o limite de " + limiteContas + " conta(s) conectada(s) ao mesmo tempo.");
+        int limiteIps = plugin.getConfig().getInt("max-ips-por-conta", 1);
+        if (!plugin.getPlayerDataManager().tryAddIp(username, ip, limiteIps)) {
+            plugin.getSessionManager().unregisterAuthenticatedIp(ip, player.getUniqueId());
+            player.sendMessage(ChatColor.RED + "Esta conta já atingiu o limite de " + limiteIps + " IP(s) permitido(s).");
             return;
         }
 
@@ -157,7 +155,7 @@ public class LoginCommand implements CommandExecutor {
 
     private void registrarFalha(Player player, String username, String ip) {
         int max = Math.max(1, plugin.getConfig().getInt("max-tentativas-login", 3));
-        long minutosBloqueio = Math.max(1L, plugin.getConfig().getLong("bloqueio-apos-exceder-tentativas-minutos", 5));
+        long minutosBloqueio = Math.max(1L, plugin.getConfig().getLong("bloqueio-apos-exceder-tentativas-login-minutos", 5));
         long bloqueioMs = minutosBloqueio * 60_000L;
         int tentativasIp = plugin.getLoginProtection().registrarErro(ip, max, bloqueioMs);
         int tentativasConta = plugin.getLoginProtection().registrarErroConta(username, max, bloqueioMs);
