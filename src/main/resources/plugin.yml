@@ -12,17 +12,17 @@ commands:
   login:
     description: Efetua login na sua conta
     usage: /login <senha>
-    permission: authsystem.login
+    permission: loginplus.login
   registro:
     description: Cria uma nova conta
     usage: /registro <senha> <confirmar-senha>
     aliases: [register, cadastrar]
-    permission: authsystem.registro
+    permission: loginplus.registro
 
 permissions:
-  authsystem.login:
+  loginplus.login:
     description: Permite efetuar login na propria conta.
     default: true
-  authsystem.registro:
+  loginplus.registro:
     description: Permite criar uma nova conta.
     default: true
