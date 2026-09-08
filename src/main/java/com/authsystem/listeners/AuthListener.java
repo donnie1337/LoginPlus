@@ -58,10 +58,11 @@ public class AuthListener implements Listener {
         Player player = event.getPlayer();
         String ip = IpResolver.getPlayerIp(player);
         boolean registrado = plugin.getPlayerDataManager().isRegistered(player.getName());
-        UUID verificacaoPremium = null;
+        UUID verificacaoPremium = plugin.getPremiumAuthenticator().consumeVerified(
+                player.getName(), ip, player.getUniqueId());
 
         // O cadastro local tem prioridade. So consumimos uma verificacao premium quando nao existe conta local.
-        if (!registrado) verificacaoPremium = plugin.getPremiumAuthenticator().consumeVerified(player.getName(), ip);
+        if (registrado) verificacaoPremium = null;
 
         if (!registrado && verificacaoPremium != null) {
             int limiteContas = plugin.getConfig().getInt("max-contas-por-ip", 1);
@@ -98,8 +99,8 @@ public class AuthListener implements Listener {
 
     private void enviarTitleAutenticacao(Player player, String titulo, String subtitulo) { player.sendTitle(titulo, subtitulo, 10, 60, 10); }
 
-    @EventHandler public void onQuit(PlayerQuitEvent event) { plugin.getSessionManager().clear(event.getPlayer()); plugin.getPremiumAuthenticator().clear(event.getPlayer().getName(), IpResolver.getPlayerIp(event.getPlayer())); }
-    @EventHandler public void onKick(PlayerKickEvent event) { plugin.getSessionManager().clear(event.getPlayer()); plugin.getPremiumAuthenticator().clear(event.getPlayer().getName(), IpResolver.getPlayerIp(event.getPlayer())); }
+    @EventHandler public void onQuit(PlayerQuitEvent event) { plugin.getSessionManager().clear(event.getPlayer()); plugin.getPremiumAuthenticator().clear(event.getPlayer().getName(), IpResolver.getPlayerIp(event.getPlayer()), event.getPlayer().getUniqueId()); }
+    @EventHandler public void onKick(PlayerKickEvent event) { plugin.getSessionManager().clear(event.getPlayer()); plugin.getPremiumAuthenticator().clear(event.getPlayer().getName(), IpResolver.getPlayerIp(event.getPlayer()), event.getPlayer().getUniqueId()); }
     private boolean precisaBloquear(Player player) { return !plugin.getSessionManager().isAuthenticated(player); }
 
     @EventHandler(priority = EventPriority.LOWEST)
