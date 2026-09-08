@@ -80,6 +80,7 @@ public class AuthSystem extends JavaPlugin {
             registerCommand.cleanupExpired();
             premiumLoginVerifier.cleanupExpired();
             premiumVerificationListener.cleanupExpired();
+            premiumAuthenticator.cleanupExpired();
             mojangRateLimiter.cleanupExpired();
         }, 20L * 60L, 20L * 60L);
 
