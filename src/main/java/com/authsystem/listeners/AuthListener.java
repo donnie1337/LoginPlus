@@ -61,26 +61,9 @@ public class AuthListener implements Listener {
         UUID verificacaoPremium = plugin.getPremiumAuthenticator().consumeVerified(
                 player.getName(), ip, player.getUniqueId());
 
-        // O cadastro local tem prioridade. So consumimos uma verificacao premium quando nao existe conta local.
-        if (registrado) verificacaoPremium = null;
-
-        if (!registrado && verificacaoPremium != null) {
-            int limiteContas = plugin.getConfig().getInt("max-contas-por-ip", 1);
-            if (!plugin.getSessionManager().tryRegisterAuthenticatedIp(ip, player.getUniqueId(), limiteContas)) {
-                player.sendMessage(ChatColor.RED + "Este IP já atingiu o limite de " + limiteContas + " conta(s) autenticada(s) ao mesmo tempo. Você permanece conectado, mas precisa aguardar uma vaga para autenticar.");
-            } else {
-                int limiteIps = plugin.getConfig().getInt("max-ips-por-conta", 1);
-                if (!plugin.getPremiumAccountManager().tryAddIp(verificacaoPremium, ip, limiteIps)) {
-                    plugin.getSessionManager().unregisterAuthenticatedIp(ip, player.getUniqueId());
-                    player.sendMessage(ChatColor.RED + "Esta conta original já atingiu o limite de " + limiteIps + " IP(s) permitido(s). Autenticação automática bloqueada; aguarde ou entre novamente quando houver vaga.");
-                } else {
-                    plugin.getSessionManager().markPremium(player.getUniqueId());
-                    plugin.getSessionManager().setAuthenticated(player, true);
-                    enviarTitleAutenticacao(player, plugin.getMessagesManager().getTitleBemVindo(), "");
-                    player.sendMessage(ChatColor.GREEN + "Conta original verificada! Login automático realizado.");
-                    return;
-                }
-            }
+        // Uma prova premium valida a identidade da conexao, inclusive quando a conta ja possui cadastro local.
+        if (verificacaoPremium != null) {
+            if (autenticarPremium(player, verificacaoPremium, ip)) return;
         }
 
         if (registrado) {
@@ -95,6 +78,27 @@ public class AuthListener implements Listener {
             if (player.isOnline() && !plugin.getSessionManager().isAuthenticated(player)) player.kickPlayer(ChatColor.RED + "Você demorou muito para fazer login/registro.");
         }, timeoutSegundos * 20L);
         plugin.getSessionManager().setTimeoutTask(player, task);
+    }
+
+    private boolean autenticarPremium(Player player, UUID premiumUuid, String ip) {
+        int limiteContas = plugin.getConfig().getInt("max-contas-por-ip", 1);
+        if (!plugin.getSessionManager().tryRegisterAuthenticatedIp(ip, player.getUniqueId(), limiteContas)) {
+            player.sendMessage(ChatColor.RED + "Este IP já atingiu o limite de " + limiteContas + " conta(s) autenticada(s) ao mesmo tempo. Você permanece conectado, mas precisa aguardar uma vaga para autenticar.");
+            return false;
+        }
+
+        int limiteIps = plugin.getConfig().getInt("max-ips-por-conta", 1);
+        if (!plugin.getPremiumAccountManager().tryAddIp(premiumUuid, ip, limiteIps)) {
+            plugin.getSessionManager().unregisterAuthenticatedIp(ip, player.getUniqueId());
+            player.sendMessage(ChatColor.RED + "Esta conta original já atingiu o limite de " + limiteIps + " IP(s) permitido(s). Autenticação automática bloqueada; aguarde ou entre novamente quando houver vaga.");
+            return false;
+        }
+
+        plugin.getSessionManager().markPremium(player.getUniqueId());
+        plugin.getSessionManager().setAuthenticated(player, true);
+        enviarTitleAutenticacao(player, plugin.getMessagesManager().getTitleBemVindo(), "");
+        player.sendMessage(ChatColor.GREEN + "Conta original verificada! Login automático realizado.");
+        return true;
     }
 
     private void enviarTitleAutenticacao(Player player, String titulo, String subtitulo) { player.sendTitle(titulo, subtitulo, 10, 60, 10); }
