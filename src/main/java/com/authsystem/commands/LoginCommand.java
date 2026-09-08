@@ -155,7 +155,7 @@ public class LoginCommand implements CommandExecutor {
 
     private void registrarFalha(Player player, String username, String ip) {
         int max = Math.max(1, plugin.getConfig().getInt("max-tentativas-login", 3));
-        long minutosBloqueio = Math.max(1L, plugin.getConfig().getLong("bloqueio-apos-exceder-tentativas-login-minutos", 5));
+        long minutosBloqueio = Math.max(1L, plugin.getConfig().getLong("bloqueio-apos-exceder-tentativas-minutos", 5));
         long bloqueioMs = minutosBloqueio * 60_000L;
         int tentativasIp = plugin.getLoginProtection().registrarErro(ip, max, bloqueioMs);
         int tentativasConta = plugin.getLoginProtection().registrarErroConta(username, max, bloqueioMs);
