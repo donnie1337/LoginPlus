@@ -84,7 +84,7 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
         // Uma conta premium ja confirmada precisa passar novamente pelo desafio criptografico.
         // Isso impede que um cliente cracked use apenas o mesmo nickname para entrar.
         if (plugin.getPlayerDataManager().isRegistered(username) && !plugin.getPlayerDataManager().isPremiumIdentity(username)) {
-            authenticator.clear(username, ip);
+            authenticator.clear(username, ip, playerUuid);
             event.setCancelled(true);
             resume(user, version, username, playerUuid);
             return;
@@ -176,7 +176,7 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
             releasePending(pending.ip());
             UUID mojangUuid = result.orElse(null);
             if (mojangUuid != null && pending.playerUuid() != null && mojangUuid.equals(pending.playerUuid())) {
-                authenticator.markVerified(pending.username(), pending.ip(), mojangUuid);
+                authenticator.markVerified(pending.username(), pending.ip(), pending.playerUuid(), mojangUuid);
                 plugin.getPlayerDataManager().markPremiumIdentity(pending.username(), mojangUuid, pending.ip());
                 LOGGER.info("Identidade premium verificada e protegida para " + pending.username());
                 resume(user, pending.version(), pending.username(), pending.playerUuid());
