@@ -11,10 +11,10 @@ import java.util.Base64;
 /** Gera e verifica hashes de senha usando PBKDF2 com salt aleatorio. */
 public final class PasswordUtils {
     public static final int DEFAULT_MIN_PASSWORD_LENGTH = 7;
-    public static final int DEFAULT_MAX_PASSWORD_LENGTH = 16;
-    public static final int DEFAULT_ITERATIONS = 10_000;
-    public static final int MIN_ITERATIONS = 100;
-    public static final int MAX_ITERATIONS = 10_000;
+    public static final int DEFAULT_MAX_PASSWORD_LENGTH = 64;
+    public static final int DEFAULT_ITERATIONS = 600_000;
+    public static final int MIN_ITERATIONS = 100_000;
+    public static final int MAX_ITERATIONS = 1_000_000;
     public static final int LEGACY_ITERATIONS = 65_536;
     private static final int KEY_LENGTH_BITS = 256;
     private static final SecureRandom RANDOM = new SecureRandom();
@@ -27,7 +27,7 @@ public final class PasswordUtils {
         if (minLength < 1 || maxLength < minLength) return "Configuracao de senha invalida.";
         if (password.length() < minLength) return "Sua senha precisa ter pelo menos " + minLength + " caracteres.";
         if (password.length() > maxLength) return "Sua senha pode ter no maximo " + maxLength + " caracteres.";
-        if (!password.matches("^[A-Za-z0-9]+$")) return "Sua senha pode conter apenas letras e numeros, sem espacos ou caracteres especiais.";
+        if (password.codePoints().anyMatch(Character::isWhitespace)) return "Sua senha nao pode conter espacos ou quebras de linha.";
         if (!password.matches(".*[A-Za-z].*") || !password.matches(".*[0-9].*")) return "Sua senha precisa conter pelo menos uma letra e um numero.";
         return null;
     }
@@ -42,14 +42,10 @@ public final class PasswordUtils {
         return hash(password, saltBase64, DEFAULT_ITERATIONS);
     }
 
-    /**
-     * Calcula um hash com o numero de iteracoes informado.
-     * O limite de configuracao (100..10000) e aplicado por AuthSystem;
-     * este metodo tambem precisa aceitar hashes antigos com mais iteracoes para verificacao.
-     */
+    /** Calcula um hash PBKDF2-HMAC-SHA256 com o numero de iteracoes informado. */
     public static String hash(String password, String saltBase64, int iterations) {
         try {
-            if (iterations < 1) {
+            if (iterations < 1 || iterations > MAX_ITERATIONS) {
                 throw new IllegalArgumentException("Numero de iteracoes PBKDF2 invalido: " + iterations);
             }
             byte[] salt = Base64.getDecoder().decode(saltBase64);
