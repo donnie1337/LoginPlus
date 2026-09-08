@@ -21,9 +21,9 @@ seguranca:
   max-handshakes-premium-pendentes: 100
   max-handshakes-premium-por-ip: 3
 
-  # kick recusa qualquer falha de verificacao premium antes do login.
+  # Permite contas cracked que ainda nao foram confirmadas como premium.
   # Um nickname ja confirmado como premium continua protegido permanentemente.
-  acao-falha-verificacao-premium: kick
+  acao-falha-verificacao-premium: cracked
 
 max-contas-por-ip: 2
 bloquear-conexao-quando-limite-ip-atingido: true
