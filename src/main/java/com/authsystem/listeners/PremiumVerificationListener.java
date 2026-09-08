@@ -81,12 +81,10 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
             return;
         }
 
-        if (plugin.getPlayerDataManager().isRegistered(username) && !plugin.getPlayerDataManager().isPremiumIdentity(username)) {
-            authenticator.clear(username, ip, playerUuid);
-            event.setCancelled(true);
-            resume(user, version, username, playerUuid);
-            return;
-        }
+        // Mesmo que o nickname ja possua um cadastro cracked, nunca pule a verificacao
+        // premium. O jogador pode estar entrando com a conta original e, nesse caso,
+        // a prova da Mojang deve ter a oportunidade de promover a sessao para premium.
+        // A decisao cracked/premium so e tomada depois do desafio criptografico.
 
         String key = connectionKey(user);
         if (key == null) {
