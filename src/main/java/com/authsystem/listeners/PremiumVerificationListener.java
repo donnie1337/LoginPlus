@@ -98,7 +98,7 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
 
         event.setCancelled(true);
         if (!tryAcquirePending(ip)) {
-            LOGGER.fine("Limite de handshakes premium pendentes atingido para " + username + " (" + ip + ").");
+            LOGGER.fine("Limite de handshakes premium pendentes atingido para " + username + ".");
             handleVerificationFailure(user, version, username, playerUuid, ip, "Limite de verificacoes premium pendentes atingido.");
             return;
         }
@@ -106,7 +106,7 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
         byte[] verifyToken = verifier.start(key, username);
         if (verifyToken == null) {
             releasePending(ip);
-            LOGGER.fine("Handshake premium duplicado ignorado para " + username + " (" + key + ").");
+            LOGGER.fine("Handshake premium duplicado ignorado para " + username + ".");
             return;
         }
 
@@ -114,7 +114,7 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
         if (connections.putIfAbsent(key, pending) != null) {
             verifier.remove(key);
             releasePending(ip);
-            LOGGER.warning("Reserva de conexao premium duplicada detectada para " + username + " (" + key + ").");
+            LOGGER.warning("Reserva de conexao premium duplicada detectada para " + username + ".");
             handleVerificationFailure(user, version, username, playerUuid, ip, "Reserva de conexao premium duplicada.");
             return;
         }
@@ -164,7 +164,7 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
 
         int limiteConsultas = plugin.getConfig().getInt("max-verificacoes-mojang-por-minuto", 30);
         if (!plugin.getMojangRateLimiter().podeConsultar(pending.ip(), limiteConsultas)) {
-            LOGGER.warning("Limite de verificacoes Mojang atingido para o IP " + pending.ip() + ".");
+            LOGGER.warning("Limite de verificacoes Mojang atingido para " + pending.username() + ".");
             failAndHandle(key, pending, user, "Limite de verificacoes na Mojang atingido.");
             return;
         }
@@ -221,7 +221,6 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
             if (task != null) task.cancel();
             verifier.remove(entry.getKey());
             releasePending(pending.ip());
-            handleVerificationFailure(null, pending.version(), pending.username(), pending.playerUuid(), pending.ip(), "Conexao premium expirada.");
             return true;
         });
     }
@@ -280,11 +279,12 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
         if (pipeline.get("authsystem-encrypt") == null) pipeline.addBefore("prepender", "authsystem-encrypt", new AesCfb8Encoder(encrypt));
     }
 
+    /** Usa o identificador do canal, e nao IP:porta, para impedir colisao entre conexoes. */
     private static String connectionKey(User user) {
-        if (user == null || user.getAddress() == null || user.getAddress().getAddress() == null) return null;
-        String host = user.getAddress().getAddress().getHostAddress();
-        if (host == null || host.isBlank()) return null;
-        return host + ":" + user.getAddress().getPort();
+        if (user == null || user.getChannel() == null) return null;
+        Object rawChannel = user.getChannel();
+        if (!(rawChannel instanceof Channel channel)) return null;
+        return channel.id().asLongText();
     }
 
     private record PendingConnection(String username, ClientVersion version, UUID playerUuid, String ip, long createdAt) {}
