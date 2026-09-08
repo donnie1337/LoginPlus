@@ -65,7 +65,7 @@ public class AuthListener implements Listener {
 
         if (!registrado && verificacaoPremium != null) {
             int limiteIps = plugin.getConfig().getInt("max-ips-por-conta", 1);
-            if (limiteIps > 0 && !plugin.getPremiumAccountManager().tryAddIp(verificacaoPremium, ip, limiteIps)) {
+            if (!plugin.getPremiumAccountManager().tryAddIp(verificacaoPremium, ip, limiteIps)) {
                 player.sendMessage(ChatColor.RED + "Esta conta original já atingiu o limite de " + limiteIps + " IP(s) permitido(s). Autenticação automática bloqueada; aguarde ou entre novamente quando houver vaga.");
             } else {
                 int limiteContas = plugin.getConfig().getInt("max-contas-por-ip", 1);
