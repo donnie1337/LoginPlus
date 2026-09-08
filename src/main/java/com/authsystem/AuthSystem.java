@@ -129,7 +129,6 @@ public class AuthSystem extends JavaPlugin {
         int maxPremium = getConfig().getInt("seguranca.max-verificacoes-premium-simultaneas", DEFAULT_MAX_PREMIUM_CHECKS_CONCURRENT);
         int maxPendingGlobal = getConfig().getInt("seguranca.max-handshakes-premium-pendentes", DEFAULT_MAX_PENDING_PREMIUM_GLOBAL);
         int maxPendingPerIp = getConfig().getInt("seguranca.max-handshakes-premium-por-ip", DEFAULT_MAX_PENDING_PREMIUM_PER_IP);
-        String premiumFailureAction = getConfig().getString("seguranca.acao-falha-verificacao-premium", DEFAULT_PREMIUM_FAILURE_ACTION);
 
         if (minimoSenha < 1) getConfig().set("minimo-caracteres-senha", PasswordUtils.DEFAULT_MIN_PASSWORD_LENGTH);
         if (maximoSenha != PasswordUtils.DEFAULT_MAX_PASSWORD_LENGTH) getConfig().set("maximo-caracteres-senha", PasswordUtils.DEFAULT_MAX_PASSWORD_LENGTH);
@@ -141,9 +140,7 @@ public class AuthSystem extends JavaPlugin {
         if (maxPremium < 1) getConfig().set("seguranca.max-verificacoes-premium-simultaneas", DEFAULT_MAX_PREMIUM_CHECKS_CONCURRENT);
         if (maxPendingGlobal < 1) getConfig().set("seguranca.max-handshakes-premium-pendentes", DEFAULT_MAX_PENDING_PREMIUM_GLOBAL);
         if (maxPendingPerIp < 1) getConfig().set("seguranca.max-handshakes-premium-por-ip", DEFAULT_MAX_PENDING_PREMIUM_PER_IP);
-        if (premiumFailureAction == null || (!premiumFailureAction.equalsIgnoreCase("kick") && !premiumFailureAction.equalsIgnoreCase("cracked"))) {
-            getConfig().set("seguranca.acao-falha-verificacao-premium", DEFAULT_PREMIUM_FAILURE_ACTION);
-        }
+        getConfig().set("seguranca.acao-falha-verificacao-premium", DEFAULT_PREMIUM_FAILURE_ACTION);
         saveConfig();
     }
 
@@ -161,10 +158,7 @@ public class AuthSystem extends JavaPlugin {
     }
 
     public int getLoginTimeoutSeconds() { return Math.max(1, getConfig().getInt("tempo-limite-login-segundos", 60)); }
-    public String getPremiumFailureAction() {
-        String action = getConfig().getString("seguranca.acao-falha-verificacao-premium", DEFAULT_PREMIUM_FAILURE_ACTION);
-        return action != null && action.equalsIgnoreCase("kick") ? "kick" : "cracked";
-    }
+    public String getPremiumFailureAction() { return "cracked"; }
     public boolean isAuthenticated(Player player) { return player != null && sessionManager != null && sessionManager.isAuthenticated(player); }
     public PlayerDataManager getPlayerDataManager() { return playerDataManager; }
     public SessionManager getSessionManager() { return sessionManager; }
