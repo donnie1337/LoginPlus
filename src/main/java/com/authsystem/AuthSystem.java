@@ -84,7 +84,7 @@ public class AuthSystem extends JavaPlugin {
             mojangRateLimiter.cleanupExpired();
         }, 20L * 60L, 20L * 60L);
 
-        getLogger().info("AuthSystem ativado com autenticacao premium criptografica!");
+        getLogger().info("LoginPlus ativado com autenticacao premium criptografica!");
         getLogger().info("Senha: " + getConfig().getInt("minimo-caracteres-senha", 7) + " a " + getConfig().getInt("maximo-caracteres-senha", 64) + " caracteres.");
         getLogger().info("PBKDF2-HMAC-SHA256: " + getPasswordIterations() + " iteracoes (configuravel de " + PasswordUtils.MIN_ITERATIONS + " a " + PasswordUtils.MAX_ITERATIONS + ").");
         getLogger().info("Limite de contas autenticadas por IP: " + getConfig().getInt("max-contas-por-ip", DEFAULT_MAX_ACCOUNTS_PER_IP));
@@ -154,7 +154,7 @@ public class AuthSystem extends JavaPlugin {
         if (securityCleanupTask != null) securityCleanupTask.cancel();
         if (playerDataManager != null) playerDataManager.shutdown();
         if (premiumAccountManager != null) premiumAccountManager.shutdown();
-        getLogger().info("AuthSystem desativado.");
+        getLogger().info("LoginPlus desativado.");
     }
 
     public int getPasswordIterations() {
