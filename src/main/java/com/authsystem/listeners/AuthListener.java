@@ -65,14 +65,13 @@ public class AuthListener implements Listener {
 
         if (!registrado && verificacaoPremium != null) {
             int limiteIps = plugin.getConfig().getInt("max-ips-por-conta", 1);
-            if (!plugin.getPremiumAccountManager().canUseIp(verificacaoPremium, ip, limiteIps)) {
+            if (limiteIps > 0 && !plugin.getPremiumAccountManager().tryAddIp(verificacaoPremium, ip, limiteIps)) {
                 player.sendMessage(ChatColor.RED + "Esta conta original já atingiu o limite de " + limiteIps + " IP(s) permitido(s). Autenticação automática bloqueada; aguarde ou entre novamente quando houver vaga.");
             } else {
                 int limiteContas = plugin.getConfig().getInt("max-contas-por-ip", 1);
                 if (!plugin.getSessionManager().tryRegisterAuthenticatedIp(ip, player.getUniqueId(), limiteContas)) {
                     player.sendMessage(ChatColor.RED + "Este IP já atingiu o limite de " + limiteContas + " conta(s) autenticada(s) ao mesmo tempo. Você permanece conectado, mas precisa aguardar uma vaga para autenticar.");
                 } else {
-                    plugin.getPremiumAccountManager().addIp(verificacaoPremium, ip);
                     plugin.getSessionManager().markPremium(player.getUniqueId());
                     plugin.getSessionManager().setAuthenticated(player, true);
                     enviarTitleAutenticacao(player, plugin.getMessagesManager().getTitleBemVindo(), "");
