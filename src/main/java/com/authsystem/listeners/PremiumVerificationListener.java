@@ -173,14 +173,14 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
             if (!connections.remove(key, pending)) return;
             releasePending(pending.ip());
             UUID mojangUuid = result.orElse(null);
-            if (mojangUuid != null && pending.playerUuid() != null && mojangUuid.equals(pending.playerUuid())) {
+            if (mojangUuid != null && pending.playerUuid() != null) {
                 authenticator.markVerified(pending.username(), pending.ip(), pending.playerUuid(), mojangUuid);
                 plugin.getPlayerDataManager().markPremiumIdentity(pending.username(), mojangUuid, pending.ip());
                 LOGGER.info("Identidade premium verificada e protegida para " + pending.username());
                 resume(user, pending.version(), pending.username(), pending.playerUuid());
             } else if (mojangUuid != null) {
-                LOGGER.warning("UUID da Mojang nao corresponde ao UUID enviado pelo cliente para " + pending.username() + ".");
-                handleVerificationFailure(user, pending.version(), pending.username(), pending.playerUuid(), pending.ip(), "UUID da Mojang nao corresponde ao cliente.");
+                LOGGER.warning("A Mojang confirmou a conta premium de " + pending.username() + ", mas o cliente nao apresentou UUID de conexao valido.");
+                handleVerificationFailure(user, pending.version(), pending.username(), pending.playerUuid(), pending.ip(), "UUID da conexao indisponivel apos a verificacao premium.");
             } else {
                 LOGGER.info("Sessao da Mojang nao confirmada para " + pending.username() + ".");
                 handleVerificationFailure(user, pending.version(), pending.username(), pending.playerUuid(), pending.ip(), "A Mojang nao confirmou esta sessao.");
