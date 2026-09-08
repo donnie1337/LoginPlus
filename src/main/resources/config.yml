@@ -7,7 +7,7 @@ max-tentativas-login: 3
 bloqueio-apos-exceder-tentativas-minutos: 5
 
 minimo-caracteres-senha: 7
-maximo-caracteres-senha: 16
+maximo-caracteres-senha: 64
 
 registro:
   max-tentativas-por-ip: 3
@@ -15,18 +15,15 @@ registro:
   cooldown-segundos: 30
 
 seguranca:
-  pbkdf2-iteracoes: 10000
+  pbkdf2-iteracoes: 600000
   max-processamentos-pbkdf2-simultaneos: 2
   max-verificacoes-premium-simultaneas: 4
   max-handshakes-premium-pendentes: 100
   max-handshakes-premium-por-ip: 3
 
-  # cracked = permite o fluxo normal de contas sem verificacao premium.
-  # kick = recusa falhas de verificacao premium que ainda nao estao protegidas.
-  # IMPORTANTE: depois que um nickname for confirmado como premium, a conta
-  # fica protegida permanentemente e uma falha de verificacao desse nickname
-  # sempre sera recusada com a mensagem de conta ja cadastrada como original.
-  acao-falha-verificacao-premium: cracked
+  # kick recusa qualquer falha de verificacao premium antes do login.
+  # Um nickname ja confirmado como premium continua protegido permanentemente.
+  acao-falha-verificacao-premium: kick
 
 max-contas-por-ip: 2
 bloquear-conexao-quando-limite-ip-atingido: true
