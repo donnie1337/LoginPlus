@@ -35,7 +35,8 @@ jobs:
             test -f "/tmp/authsystem-jar/$arquivo"
           done
           grep -F 'minimo-caracteres-senha: 7' /tmp/authsystem-jar/config.yml >/dev/null
-          grep -F 'maximo-caracteres-senha: 16' /tmp/authsystem-jar/config.yml >/dev/null
+          grep -F 'maximo-caracteres-senha: 64' /tmp/authsystem-jar/config.yml >/dev/null
+          grep -F 'seguranca:' /tmp/authsystem-jar/config.yml >/dev/null
           grep -F 'max-contas-por-ip: 2' /tmp/authsystem-jar/config.yml >/dev/null
           grep -F 'max-ips-por-conta: 1' /tmp/authsystem-jar/config.yml >/dev/null
           grep -F 'max-verificacoes-mojang-por-minuto: 30' /tmp/authsystem-jar/config.yml >/dev/null
