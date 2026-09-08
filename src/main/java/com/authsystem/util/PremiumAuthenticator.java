@@ -9,29 +9,39 @@ public final class PremiumAuthenticator {
     private static final long VERIFIED_TTL_MS = 60_000L;
     private final ConcurrentHashMap<String, VerifiedSession> verified = new ConcurrentHashMap<>();
 
-    public void markVerified(String username, String ip, UUID mojangUuid) {
-        if (username == null || ip == null || mojangUuid == null) {
+    /**
+     * Registra a prova premium vinculando-a ao nickname, IP e UUID apresentados na conexao.
+     * O UUID e parte da chave para impedir que uma prova de uma sessao seja reutilizada por outra identidade.
+     */
+    public void markVerified(String username, String ip, UUID playerUuid, UUID mojangUuid) {
+        if (username == null || ip == null || playerUuid == null || mojangUuid == null) {
             return;
         }
-        verified.put(key(username, ip), new VerifiedSession(mojangUuid, System.currentTimeMillis()));
+        if (!playerUuid.equals(mojangUuid)) {
+            return;
+        }
+        verified.put(key(username, ip, playerUuid), new VerifiedSession(mojangUuid, System.currentTimeMillis()));
     }
 
-    /** Consome a prova premium quando o jogador realmente entra no servidor. */
-    public UUID consumeVerified(String username, String ip) {
-        if (username == null || ip == null) {
+    /** Consome a prova premium somente para a mesma identidade que concluiu o desafio criptografico. */
+    public UUID consumeVerified(String username, String ip, UUID playerUuid) {
+        if (username == null || ip == null || playerUuid == null) {
             return null;
         }
-        String key = key(username, ip);
+        String key = key(username, ip, playerUuid);
         VerifiedSession session = verified.remove(key);
         if (session == null || System.currentTimeMillis() - session.timestamp() > VERIFIED_TTL_MS) {
+            return null;
+        }
+        if (!playerUuid.equals(session.mojangUuid())) {
             return null;
         }
         return session.mojangUuid();
     }
 
-    public void clear(String username, String ip) {
-        if (username != null && ip != null) {
-            verified.remove(key(username, ip));
+    public void clear(String username, String ip, UUID playerUuid) {
+        if (username != null && ip != null && playerUuid != null) {
+            verified.remove(key(username, ip, playerUuid));
         }
     }
 
@@ -41,8 +51,8 @@ public final class PremiumAuthenticator {
         verified.entrySet().removeIf(entry -> now - entry.getValue().timestamp() > VERIFIED_TTL_MS);
     }
 
-    private static String key(String username, String ip) {
-        return username.toLowerCase(Locale.ROOT) + "|" + ip;
+    private static String key(String username, String ip, UUID playerUuid) {
+        return username.toLowerCase(Locale.ROOT) + "|" + ip + "|" + playerUuid;
     }
 
     private record VerifiedSession(UUID mojangUuid, long timestamp) {}
