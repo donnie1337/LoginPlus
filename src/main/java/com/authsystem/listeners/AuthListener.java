@@ -64,13 +64,14 @@ public class AuthListener implements Listener {
         if (!registrado) verificacaoPremium = plugin.getPremiumAuthenticator().consumeVerified(player.getName(), ip);
 
         if (!registrado && verificacaoPremium != null) {
-            int limiteIps = plugin.getConfig().getInt("max-ips-por-conta", 1);
-            if (!plugin.getPremiumAccountManager().tryAddIp(verificacaoPremium, ip, limiteIps)) {
-                player.sendMessage(ChatColor.RED + "Esta conta original já atingiu o limite de " + limiteIps + " IP(s) permitido(s). Autenticação automática bloqueada; aguarde ou entre novamente quando houver vaga.");
+            int limiteContas = plugin.getConfig().getInt("max-contas-por-ip", 1);
+            if (!plugin.getSessionManager().tryRegisterAuthenticatedIp(ip, player.getUniqueId(), limiteContas)) {
+                player.sendMessage(ChatColor.RED + "Este IP já atingiu o limite de " + limiteContas + " conta(s) autenticada(s) ao mesmo tempo. Você permanece conectado, mas precisa aguardar uma vaga para autenticar.");
             } else {
-                int limiteContas = plugin.getConfig().getInt("max-contas-por-ip", 1);
-                if (!plugin.getSessionManager().tryRegisterAuthenticatedIp(ip, player.getUniqueId(), limiteContas)) {
-                    player.sendMessage(ChatColor.RED + "Este IP já atingiu o limite de " + limiteContas + " conta(s) autenticada(s) ao mesmo tempo. Você permanece conectado, mas precisa aguardar uma vaga para autenticar.");
+                int limiteIps = plugin.getConfig().getInt("max-ips-por-conta", 1);
+                if (!plugin.getPremiumAccountManager().tryAddIp(verificacaoPremium, ip, limiteIps)) {
+                    plugin.getSessionManager().unregisterAuthenticatedIp(ip, player.getUniqueId());
+                    player.sendMessage(ChatColor.RED + "Esta conta original já atingiu o limite de " + limiteIps + " IP(s) permitido(s). Autenticação automática bloqueada; aguarde ou entre novamente quando houver vaga.");
                 } else {
                     plugin.getSessionManager().markPremium(player.getUniqueId());
                     plugin.getSessionManager().setAuthenticated(player, true);
