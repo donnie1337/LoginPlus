@@ -160,6 +160,20 @@ public class PlayerDataManager {
         return ips.contains(ip) || ips.size() < limiteIps;
     }
 
+    /** Verifica e registra o IP na mesma operacao, evitando corrida entre logins simultaneos. */
+    public synchronized boolean tryAddIp(String username, String ip, int limiteIps) {
+        if (username == null || username.isBlank() || ip == null || ip.isBlank()) return false;
+        List<String> ips = getIps(username);
+        if (ips.contains(ip)) return true;
+        if (limiteIps > 0 && ips.size() >= limiteIps) return false;
+        String base = key(username);
+        ips.add(ip);
+        data.set(base + ".ips", ips);
+        if (!data.contains(base + ".ip")) data.set(base + ".ip", ip);
+        scheduleAsyncSave();
+        return true;
+    }
+
     public synchronized void addIp(String username, String ip) {
         if (username == null || ip == null || ip.isBlank()) return;
         String base = key(username);
