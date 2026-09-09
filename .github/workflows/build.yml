@@ -17,6 +17,17 @@ jobs:
           distribution: temurin
           java-version: '26'
           cache: maven
+      - name: Validar ambiente Java e Maven
+        run: |
+          set -euo pipefail
+          echo '=== java -version ==='
+          java -version
+          echo '=== javac -version ==='
+          javac -version
+          echo '=== mvn -version ==='
+          mvn -version
+          echo '=== JAVA_HOME ==='
+          echo "$JAVA_HOME"
       - name: Baixar BuildTools
         run: curl -fsSL -o BuildTools.jar https://hub.spigotmc.org/jenkins/job/BuildTools/lastSuccessfulBuild/artifact/target/BuildTools.jar
       - name: Gerar Spigot
