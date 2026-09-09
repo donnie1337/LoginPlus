@@ -21,56 +21,61 @@ public class LoginCommand implements CommandExecutor {
 
     public LoginCommand(AuthSystem plugin) { this.plugin = plugin; }
 
+    private static String erro(String mensagem) { return "§c✖ §f" + mensagem; }
+    private static String aviso(String mensagem) { return "§e⚠ §f" + mensagem; }
+    private static String uso(String mensagem) { return "§e➜ §f" + mensagem; }
+    private static String sucesso(String mensagem) { return "§a✔ §f" + mensagem; }
+
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage("Este comando só pode ser usado dentro do jogo.");
+            sender.sendMessage(erro("Este comando só pode ser usado por jogadores."));
             return true;
         }
         if (plugin.getSessionManager().isAuthenticated(player)) {
-            player.sendMessage(ChatColor.YELLOW + "Você já está logado.");
+            player.sendMessage(aviso("Você já está logado."));
             return true;
         }
         if (plugin.getSessionManager().isPremium(player)) {
-            player.sendMessage(ChatColor.YELLOW + "Sua conta original já foi verificada automaticamente. Não é preciso usar /login.");
+            player.sendMessage(aviso("Sua conta original já foi verificada automaticamente. Não é preciso usar /login."));
             return true;
         }
         if (!plugin.getPlayerDataManager().isRegistered(player.getName())) {
-            player.sendMessage(ChatColor.RED + "Você ainda não tem conta. Use /registro <senha> <confirmar-senha>.");
+            player.sendMessage(erro("Você ainda não tem conta. Use /registro <senha> <confirmar-senha>."));
             return true;
         }
         if (args.length != 1) {
-            player.sendMessage(ChatColor.RED + "Uso correto: /login <senha>");
+            player.sendMessage(uso("Uso: /login <senha>"));
             return true;
         }
 
         String ip = IpResolver.getPlayerIp(player);
         if (ip == null) {
-            player.sendMessage(ChatColor.RED + "Não foi possível identificar seu IP. Tente entrar novamente.");
+            player.sendMessage(erro("Não foi possível identificar seu IP. Tente entrar novamente."));
             return true;
         }
 
         String username = player.getName();
         if (plugin.getLoginProtection().estaBloqueado(ip)) {
-            player.sendMessage(ChatColor.RED + "Este IP está temporariamente bloqueado por excesso de tentativas. Tente novamente mais tarde.");
+            player.sendMessage(erro("Este IP está temporariamente bloqueado por excesso de tentativas. Tente novamente mais tarde."));
             return true;
         }
         if (plugin.getLoginProtection().estaBloqueadoConta(username)) {
             long restante = plugin.getLoginProtection().segundosRestantesConta(username);
-            player.sendMessage(ChatColor.RED + "Esta conta está temporariamente bloqueada por excesso de tentativas. Tente novamente em " + restante + " segundos.");
+            player.sendMessage(erro("Esta conta está temporariamente bloqueada por excesso de tentativas. Tente novamente em " + restante + " segundos."));
             return true;
         }
 
         UUID playerId = player.getUniqueId();
         if (!verificacoesEmAndamento.add(playerId)) {
-            player.sendMessage(ChatColor.YELLOW + "Sua senha já está sendo verificada. Aguarde um instante.");
+            player.sendMessage(aviso("Sua senha já está sendo verificada. Aguarde um instante."));
             return true;
         }
 
         int maxProcessamentos = Math.max(1, plugin.getConfig().getInt("seguranca.max-processamentos-pbkdf2-simultaneos", 2));
         if (!plugin.getHashProcessingLimiter().tryAcquire(maxProcessamentos)) {
             verificacoesEmAndamento.remove(playerId);
-            player.sendMessage(ChatColor.RED + "O servidor está processando muitas senhas no momento. Aguarde alguns segundos e tente novamente.");
+            player.sendMessage(erro("O servidor está processando muitas senhas no momento. Aguarde alguns segundos e tente novamente."));
             return true;
         }
 
@@ -79,7 +84,7 @@ public class LoginCommand implements CommandExecutor {
         if (passwordData == null) {
             plugin.getHashProcessingLimiter().release();
             verificacoesEmAndamento.remove(playerId);
-            player.sendMessage(ChatColor.RED + "Não foi possível verificar sua conta. Tente novamente.");
+            player.sendMessage(erro("Não foi possível verificar sua conta. Tente novamente."));
             return true;
         }
 
@@ -120,7 +125,7 @@ public class LoginCommand implements CommandExecutor {
                 verificacoesEmAndamento.remove(playerId);
                 Bukkit.getScheduler().runTask(plugin, () -> {
                     if (player.isOnline() && !plugin.getSessionManager().isAuthenticated(player)) {
-                        player.sendMessage(ChatColor.RED + "Não foi possível verificar sua senha. Tente novamente.");
+                        player.sendMessage(erro("Não foi possível verificar sua senha. Tente novamente."));
                     }
                 });
             } finally {
@@ -128,21 +133,21 @@ public class LoginCommand implements CommandExecutor {
             }
         });
 
-        player.sendMessage(ChatColor.YELLOW + "Verificando sua senha...");
+        player.sendMessage(aviso("Verificando sua senha..."));
         return true;
     }
 
     private void concluirLogin(Player player, String username, String ip) {
         int limiteContas = plugin.getConfig().getInt("max-contas-por-ip", 1);
         if (!plugin.getSessionManager().tryRegisterAuthenticatedIp(ip, player.getUniqueId(), limiteContas)) {
-            player.sendMessage(ChatColor.RED + "Este IP já atingiu o limite de " + limiteContas + " conta(s) conectada(s) ao mesmo tempo.");
+            player.sendMessage(erro("Este IP já atingiu o limite de " + limiteContas + " conta(s) conectada(s) ao mesmo tempo."));
             return;
         }
 
         int limiteIps = plugin.getConfig().getInt("max-ips-por-conta", 1);
         if (!plugin.getPlayerDataManager().tryAddIp(username, ip, limiteIps)) {
             plugin.getSessionManager().unregisterAuthenticatedIp(ip, player.getUniqueId());
-            player.sendMessage(ChatColor.RED + "Esta conta já atingiu o limite de " + limiteIps + " IP(s) permitido(s).");
+            player.sendMessage(erro("Esta conta já atingiu o limite de " + limiteIps + " IP(s) permitido(s)."));
             return;
         }
 
@@ -150,7 +155,7 @@ public class LoginCommand implements CommandExecutor {
         plugin.getSessionManager().cancelTimeout(player);
         plugin.getLoginProtection().limparAoLogar(ip);
         plugin.getLoginProtection().limparContaAoLogar(username);
-        player.sendMessage(ChatColor.GREEN + "Login efetuado com sucesso! Bem-vindo(a) de volta.");
+        player.sendMessage(sucesso("Login efetuado com sucesso! Bem-vindo(a) de volta."));
     }
 
     private void registrarFalha(Player player, String username, String ip) {
@@ -160,7 +165,7 @@ public class LoginCommand implements CommandExecutor {
         int tentativasIp = plugin.getLoginProtection().registrarErro(ip, max, bloqueioMs);
         int tentativasConta = plugin.getLoginProtection().registrarErroConta(username, max, bloqueioMs);
         int tentativas = Math.max(tentativasIp, tentativasConta);
-        if (tentativas > max) player.kickPlayer(ChatColor.RED + "Muitas tentativas de senha incorreta. Tente novamente mais tarde.");
-        else player.sendMessage(ChatColor.RED + "Senha incorreta! (" + tentativas + "/" + max + ")");
+        if (tentativas > max) player.kickPlayer(erro("Muitas tentativas de senha incorreta. Tente novamente mais tarde."));
+        else player.sendMessage(erro("Senha incorreta! (" + tentativas + "/" + max + ")"));
     }
 }
