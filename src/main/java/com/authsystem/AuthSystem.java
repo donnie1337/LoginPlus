@@ -23,6 +23,7 @@ import org.bukkit.scheduler.BukkitTask;
 
 import java.io.File;
 import java.util.Locale;
+import java.util.UUID;
 
 public class AuthSystem extends JavaPlugin {
     private static final int DEFAULT_MAX_ACCOUNTS_PER_IP = 1;
@@ -170,6 +171,12 @@ public class AuthSystem extends JavaPlugin {
         return action.equals("kick") ? "kick" : "cracked";
     }
     public boolean isAuthenticated(Player player) { return player != null && sessionManager != null && sessionManager.isAuthenticated(player); }
+    public void protectIdentity(String username, UUID uuid) {
+        if (playerDataManager != null) playerDataManager.protectIdentity(username, uuid);
+    }
+    public boolean isProtectedIdentity(String username) {
+        return playerDataManager != null && playerDataManager.isProtectedIdentity(username);
+    }
     public PlayerDataManager getPlayerDataManager() { return playerDataManager; }
     public SessionManager getSessionManager() { return sessionManager; }
     public LoginProtection getLoginProtection() { return loginProtection; }
