@@ -124,6 +124,22 @@ public class PlayerDataManager {
     private String key(String username) { return "players." + username.toLowerCase(Locale.ROOT); }
     public synchronized boolean isRegistered(String username) { return username != null && data.contains(key(username) + ".senha"); }
 
+    /** Retorna true quando o nickname foi reservado pelo CargoPlus para uma identidade administrativa. */
+    public synchronized boolean isProtectedIdentity(String username) {
+        return username != null && data.getBoolean(key(username) + ".protegida", false);
+    }
+
+    /** Reserva um nickname para impedir que uma conta nova seja criada com ele. */
+    public synchronized void protectIdentity(String username, UUID uuid) {
+        if (username == null || username.isBlank() || uuid == null) return;
+        String base = key(username);
+        if (data.getBoolean(base + ".protegida", false)) return;
+        data.set(base + ".protegida", true);
+        data.set(base + ".uuid-protegido", uuid.toString());
+        data.set(base + ".protegida-em", FORMATO_REGISTRO.format(LocalDateTime.now()));
+        scheduleAsyncSave();
+    }
+
     /** Retorna true quando o nickname ja foi confirmado como conta premium pela Mojang. */
     public synchronized boolean isPremiumIdentity(String username) {
         return username != null && data.getBoolean(key(username) + ".premium", false);
@@ -218,8 +234,8 @@ public class PlayerDataManager {
     }
 
     public synchronized boolean registerHashed(String username, String salt, String hash, int iterations, String ip, UUID uuid) {
-        if (username == null || username.isBlank() || isRegistered(username) || isPremiumIdentity(username) || ip == null || ip.isBlank()
-                || uuid == null || salt == null || hash == null || iterations < 1) return false;
+        if (username == null || username.isBlank() || isRegistered(username) || isPremiumIdentity(username) || isProtectedIdentity(username)
+                || ip == null || ip.isBlank() || uuid == null || salt == null || hash == null || iterations < 1) return false;
         String base = key(username);
         data.set(base + ".senha", hash);
         data.set(base + ".salt", salt);
