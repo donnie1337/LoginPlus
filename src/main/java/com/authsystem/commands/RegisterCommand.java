@@ -40,8 +40,14 @@ public class RegisterCommand implements CommandExecutor {
             player.sendMessage(ChatColor.YELLOW + "Sua conta original já foi verificada automaticamente. Não é preciso se registrar.");
             return true;
         }
-        if (plugin.getPlayerDataManager().isRegistered(player.getName())) {
+
+        String username = player.getName();
+        if (plugin.getPlayerDataManager().isRegistered(username)) {
             player.sendMessage(ChatColor.RED + "Você já possui uma conta registrada. Use /login <senha>.");
+            return true;
+        }
+        if (plugin.isProtectedIdentity(username)) {
+            player.sendMessage(ChatColor.RED + "Esta identidade está protegida e não pode ser registrada como uma nova conta.");
             return true;
         }
         if (args.length != 2) {
@@ -56,7 +62,6 @@ public class RegisterCommand implements CommandExecutor {
             return true;
         }
 
-        String username = player.getName();
         String senha = args[0];
         String confirmar = args[1];
         int minSenha = plugin.getConfig().getInt("minimo-caracteres-senha", PasswordUtils.DEFAULT_MIN_PASSWORD_LENGTH);
@@ -98,6 +103,10 @@ public class RegisterCommand implements CommandExecutor {
                         if (plugin.getSessionManager().isAuthenticated(player)) return;
                         if (plugin.getPlayerDataManager().isRegistered(username)) {
                             player.sendMessage(ChatColor.RED + "Você já possui uma conta registrada. Use /login <senha>.");
+                            return;
+                        }
+                        if (plugin.isProtectedIdentity(username)) {
+                            player.sendMessage(ChatColor.RED + "Esta identidade está protegida e não pode ser registrada como uma nova conta.");
                             return;
                         }
 
