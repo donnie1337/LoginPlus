@@ -13,18 +13,25 @@ public class SessionManager {
     private final Set<UUID> authenticated = ConcurrentHashMap.newKeySet();
     private final Set<UUID> premium = ConcurrentHashMap.newKeySet();
     private final Map<UUID, BukkitTask> timeoutTasks = new ConcurrentHashMap<>();
+    private final Map<UUID, BukkitTask> titleTasks = new ConcurrentHashMap<>();
     private final Map<String, Set<UUID>> contasAutenticadasPorIp = new ConcurrentHashMap<>();
     private final Map<UUID, String> ipAutenticadoPorConta = new ConcurrentHashMap<>();
 
     public boolean isAuthenticated(Player player) { return authenticated.contains(player.getUniqueId()); }
     public void setAuthenticated(Player player, boolean value) {
-        if (value) authenticated.add(player.getUniqueId());
-        else authenticated.remove(player.getUniqueId());
+        if (value) {
+            authenticated.add(player.getUniqueId());
+            cancelTitleTask(player);
+        } else {
+            authenticated.remove(player.getUniqueId());
+        }
     }
     public boolean isPremium(Player player) { return premium.contains(player.getUniqueId()); }
     public void markPremium(UUID uuid) { premium.add(uuid); }
     public void setTimeoutTask(Player player, BukkitTask task) { cancelTimeout(player); timeoutTasks.put(player.getUniqueId(), task); }
     public void cancelTimeout(Player player) { BukkitTask task = timeoutTasks.remove(player.getUniqueId()); if (task != null) task.cancel(); }
+    public void setTitleTask(Player player, BukkitTask task) { cancelTitleTask(player); titleTasks.put(player.getUniqueId(), task); }
+    public void cancelTitleTask(Player player) { BukkitTask task = titleTasks.remove(player.getUniqueId()); if (task != null) task.cancel(); }
 
     /** Reserva atomicamente uma vaga de autenticacao para o IP sem destruir a reserva atual em caso de recusa. */
     public synchronized boolean tryRegisterAuthenticatedIp(String ip, UUID uuid, int limite) {
@@ -75,6 +82,7 @@ public class SessionManager {
         authenticated.remove(uuid);
         premium.remove(uuid);
         cancelTimeout(player);
+        cancelTitleTask(player);
         unregisterAuthenticatedIp(ipAutenticadoPorConta.get(uuid), uuid);
     }
 }
