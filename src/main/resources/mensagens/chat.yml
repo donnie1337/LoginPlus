@@ -4,8 +4,8 @@
 # Placeholders: {restante}, {limite}, {tentativas}, {max}, {segundos}.
 
 join:
-  registrado: "\n  \n&eUse: /login <senha>\n  \n"
-  nao-registrado: "\n  \n&eUse: /registro <senha> <senha>\n  \n"
+  registrado: "\n  \n&eUse: /login <senha>\n  \n\n  \n"
+  nao-registrado: "\n  \n&eUse: /registro <senha> <senha>\n  \n\n  \n"
   timeout: "&cVocê demorou muito para fazer login/registro."
 
 login:
@@ -13,7 +13,7 @@ login:
   ja-logado: "&e⚠ &fVocê já está logado."
   premium: "&e⚠ &fSua conta original já foi verificada automaticamente. Não é preciso usar /login."
   sem-conta: "&c✖ &fVocê ainda não tem conta. Use /registro <senha> <confirmar-senha>."
-  uso: "\n  \n&eUse: /login <senha>\n  \n"
+  uso: "\n  \n&eUse: /login <senha>\n  \n\n  \n"
   ip-indisponivel: "&c✖ &fNão foi possível identificar seu IP. Tente entrar novamente."
   ip-bloqueado: "&c✖ &fEste IP está temporariamente bloqueado por excesso de tentativas. Tente novamente mais tarde."
   conta-bloqueada: "&c✖ &fEsta conta está temporariamente bloqueada por excesso de tentativas. Tente novamente em {restante} segundos."
@@ -34,7 +34,7 @@ registro:
   premium: "&eSua conta original já foi verificada automaticamente. Não é preciso se registrar."
   ja-registrado: "&cVocê já possui uma conta registrada. Use /login <senha>."
   identidade-protegida: "&cEsta identidade está protegida e não pode ser registrada como uma nova conta."
-  uso: "\n  \n&eUse: /registro <senha> <senha>\n  \n"
+  uso: "\n  \n&eUse: /registro <senha> <senha>\n  \n\n  \n"
   ip-indisponivel: "&cNão foi possível identificar seu IP. Tente entrar novamente."
   processamento-andamento: "&eSeu registro já está sendo processado. Aguarde um instante."
   processando: "&eProcessando seu registro com segurança..."
@@ -55,4 +55,4 @@ protecao:
 premium:
   limite-ip: "&cEste IP já atingiu o limite de {limite} conta(s) autenticada(s) ao mesmo tempo. Você permanece conectado, mas precisa aguardar uma vaga para autenticar."
   limite-ips-conta: "&cEsta conta original já atingiu o limite de {limite} IP(s) permitido(s). Autenticação automática bloqueada; aguarde ou entre novamente quando houver vaga."
-  sucesso: "\n  \n&aConta original verificada! Login automático realizado.\n  \n"
+  sucesso: "\n  \n&aConta original verificada! Login automático realizado.\n  \n\n  \n"
