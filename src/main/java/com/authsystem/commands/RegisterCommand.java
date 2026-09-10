@@ -3,7 +3,6 @@ package com.authsystem.commands;
 import com.authsystem.AuthSystem;
 import com.authsystem.util.PasswordUtils;
 import org.bukkit.Bukkit;
-import org.bukkit.ChatColor;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -26,39 +25,43 @@ public class RegisterCommand implements CommandExecutor {
 
     public RegisterCommand(AuthSystem plugin) { this.plugin = plugin; }
 
+    private String msg(String path, String fallback, String... replacements) {
+        return plugin.getMessagesManager().getChat(path, fallback, replacements);
+    }
+
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage("Este comando só pode ser usado dentro do jogo.");
+            sender.sendMessage(msg("registro.apenas-jogador", "&cEste comando só pode ser usado dentro do jogo."));
             return true;
         }
         if (plugin.getSessionManager().isAuthenticated(player)) {
-            player.sendMessage(ChatColor.YELLOW + "Você já está logado.");
+            player.sendMessage(msg("registro.ja-logado", "&eVocê já está logado."));
             return true;
         }
         if (plugin.getSessionManager().isPremium(player)) {
-            player.sendMessage(ChatColor.YELLOW + "Sua conta original já foi verificada automaticamente. Não é preciso se registrar.");
+            player.sendMessage(msg("registro.premium", "&eSua conta original já foi verificada automaticamente. Não é preciso se registrar."));
             return true;
         }
 
         String username = player.getName();
         if (plugin.getPlayerDataManager().isRegistered(username)) {
-            player.sendMessage(ChatColor.RED + "Você já possui uma conta registrada. Use /login <senha>.");
+            player.sendMessage(msg("registro.ja-registrado", "&cVocê já possui uma conta registrada. Use /login <senha>."));
             return true;
         }
         if (plugin.isProtectedIdentity(username)) {
-            player.sendMessage(ChatColor.RED + "Esta identidade está protegida e não pode ser registrada como uma nova conta.");
+            player.sendMessage(msg("registro.identidade-protegida", "&cEsta identidade está protegida e não pode ser registrada como uma nova conta."));
             return true;
         }
         if (args.length != 2) {
-            player.sendMessage(ChatColor.RED + "Uso correto: /registro <senha> <confirmar-senha>");
+            player.sendMessage(msg("registro.uso", "&cUso correto: /registro <senha> <confirmar-senha>"));
             return true;
         }
 
         String ip = player.getAddress() != null && player.getAddress().getAddress() != null
                 ? player.getAddress().getAddress().getHostAddress() : null;
         if (ip == null || ip.isBlank()) {
-            player.sendMessage(ChatColor.RED + "Não foi possível identificar seu IP. Tente entrar novamente.");
+            player.sendMessage(msg("registro.ip-indisponivel", "&cNão foi possível identificar seu IP. Tente entrar novamente."));
             return true;
         }
 
@@ -68,11 +71,11 @@ public class RegisterCommand implements CommandExecutor {
         int maxSenha = plugin.getConfig().getInt("maximo-caracteres-senha", PasswordUtils.DEFAULT_MAX_PASSWORD_LENGTH);
         String erroSenha = PasswordUtils.validatePassword(senha, minSenha, maxSenha);
         if (erroSenha != null) {
-            player.sendMessage(ChatColor.RED + erroSenha);
+            player.sendMessage(msg("registro.senha-invalida", "&c{mensagem}", "{mensagem}", erroSenha));
             return true;
         }
         if (!senha.equals(confirmar)) {
-            player.sendMessage(ChatColor.RED + "As senhas não coincidem.");
+            player.sendMessage(msg("registro.senhas-nao-coincidem", "&cAs senhas não coincidem."));
             return true;
         }
 
@@ -80,14 +83,14 @@ public class RegisterCommand implements CommandExecutor {
 
         UUID playerId = player.getUniqueId();
         if (!registrosEmAndamento.add(playerId)) {
-            player.sendMessage(ChatColor.YELLOW + "Seu registro já está sendo processado. Aguarde um instante.");
+            player.sendMessage(msg("registro.processamento-andamento", "&eSeu registro já está sendo processado. Aguarde um instante."));
             return true;
         }
 
         int maxProcessamentos = Math.max(1, plugin.getConfig().getInt("seguranca.max-processamentos-pbkdf2-simultaneos", 2));
         if (!plugin.getHashProcessingLimiter().tryAcquire(maxProcessamentos)) {
             registrosEmAndamento.remove(playerId);
-            player.sendMessage(ChatColor.RED + "O servidor está processando muitas senhas no momento. Aguarde alguns segundos e tente novamente.");
+            player.sendMessage(msg("registro.servidor-ocupado", "&cO servidor está processando muitas senhas no momento. Aguarde alguns segundos e tente novamente."));
             return true;
         }
 
@@ -102,31 +105,30 @@ public class RegisterCommand implements CommandExecutor {
                         if (!player.isOnline() || !player.getUniqueId().equals(playerId)) return;
                         if (plugin.getSessionManager().isAuthenticated(player)) return;
                         if (plugin.getPlayerDataManager().isRegistered(username)) {
-                            player.sendMessage(ChatColor.RED + "Você já possui uma conta registrada. Use /login <senha>.");
+                            player.sendMessage(msg("registro.ja-registrado", "&cVocê já possui uma conta registrada. Use /login <senha>."));
                             return;
                         }
                         if (plugin.isProtectedIdentity(username)) {
-                            player.sendMessage(ChatColor.RED + "Esta identidade está protegida e não pode ser registrada como uma nova conta.");
+                            player.sendMessage(msg("registro.identidade-protegida", "&cEsta identidade está protegida e não pode ser registrada como uma nova conta."));
                             return;
                         }
 
                         int limiteContas = plugin.getConfig().getInt("max-contas-por-ip", 1);
                         if (!plugin.getSessionManager().tryRegisterAuthenticatedIp(ip, playerId, limiteContas)) {
-                            player.sendMessage(ChatColor.RED + "Este IP já atingiu o limite de " + limiteContas + " conta(s) conectada(s) ao mesmo tempo. Saia com a outra conta antes de registrar.");
+                            player.sendMessage(msg("registro.limite-ip", "&cEste IP já atingiu o limite de {limite} conta(s) conectada(s) ao mesmo tempo. Saia com a outra conta antes de registrar.", "{limite}", String.valueOf(limiteContas)));
                             return;
                         }
 
-                        boolean registrado = plugin.getPlayerDataManager().registerHashed(
-                                username, salt, hash, iterations, ip, playerId);
+                        boolean registrado = plugin.getPlayerDataManager().registerHashed(username, salt, hash, iterations, ip, playerId);
                         if (!registrado) {
                             plugin.getSessionManager().unregisterAuthenticatedIp(ip, playerId);
-                            player.sendMessage(ChatColor.RED + "Não foi possível concluir o registro. Tente novamente.");
+                            player.sendMessage(msg("registro.erro-registro", "&cNão foi possível concluir o registro. Tente novamente."));
                             return;
                         }
 
                         plugin.getSessionManager().setAuthenticated(player, true);
                         plugin.getSessionManager().cancelTimeout(player);
-                        player.sendMessage(ChatColor.GREEN + "Registro concluído com sucesso! Você já está logado.");
+                        player.sendMessage(msg("registro.sucesso", "&aRegistro concluído com sucesso! Você já está logado."));
                     } finally {
                         registrosEmAndamento.remove(playerId);
                     }
@@ -136,9 +138,7 @@ public class RegisterCommand implements CommandExecutor {
                 registrosEmAndamento.remove(playerId);
                 try {
                     Bukkit.getScheduler().runTask(plugin, () -> {
-                        if (player.isOnline()) {
-                            player.sendMessage(ChatColor.RED + "Ocorreu um erro ao processar seu registro. Tente novamente.");
-                        }
+                        if (player.isOnline()) player.sendMessage(msg("registro.erro-processamento", "&cOcorreu um erro ao processar seu registro. Tente novamente."));
                     });
                 } catch (Exception ignored) {
                     // O plugin pode estar sendo desligado; nesse caso não há tarefa Bukkit a executar.
@@ -148,7 +148,7 @@ public class RegisterCommand implements CommandExecutor {
             }
         });
 
-        player.sendMessage(ChatColor.YELLOW + "Processando seu registro com segurança...");
+        player.sendMessage(msg("registro.processando", "&eProcessando seu registro com segurança..."));
         return true;
     }
 
@@ -164,10 +164,9 @@ public class RegisterCommand implements CommandExecutor {
                 Deque<Long> filaIp = filaAtual(tentativasPorIp, ip, agora, janelaMs);
                 Deque<Long> filaNome = filaAtual(tentativasPorNome, chaveNome, agora, janelaMs);
                 if (filaIp.size() >= maxTentativas || filaNome.size() >= maxTentativas) {
-                    player.sendMessage(ChatColor.RED + "Muitas tentativas de registro. Aguarde alguns minutos antes de tentar novamente.");
+                    player.sendMessage(msg("registro.muitas-tentativas", "&cMuitas tentativas de registro. Aguarde alguns minutos antes de tentar novamente."));
                     return false;
                 }
-
                 filaIp.addLast(agora);
                 filaNome.addLast(agora);
             }
@@ -180,7 +179,7 @@ public class RegisterCommand implements CommandExecutor {
                         removerUltima(tentativasPorIp, ip);
                         removerUltima(tentativasPorNome, chaveNome);
                     }
-                    player.sendMessage(ChatColor.RED + "Aguarde " + restante + " segundo(s) antes de tentar registrar novamente.");
+                    player.sendMessage(msg("registro.cooldown", "&cAguarde {segundos} segundo(s) antes de tentar registrar novamente.", "{segundos}", String.valueOf(restante)));
                     return false;
                 }
                 ultimoRegistroPorIp.put(ip, agora);
