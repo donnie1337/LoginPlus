@@ -36,6 +36,7 @@ registro:
   uso: "&cUso correto: /registro <senha> <confirmar-senha>"
   ip-indisponivel: "&cNão foi possível identificar seu IP. Tente entrar novamente."
   processamento-andamento: "&eSeu registro já está sendo processado. Aguarde um instante."
+  processando: "&eProcessando seu registro com segurança..."
   servidor-ocupado: "&cO servidor está processando muitas senhas no momento. Aguarde alguns segundos e tente novamente."
   sucesso: "&aRegistro concluído com sucesso! Você já está logado."
   limite-ip: "&cEste IP já atingiu o limite de {limite} conta(s) conectada(s) ao mesmo tempo. Saia com a outra conta antes de registrar."
@@ -54,6 +55,3 @@ premium:
   limite-ip: "&cEste IP já atingiu o limite de {limite} conta(s) autenticada(s) ao mesmo tempo. Você permanece conectado, mas precisa aguardar uma vaga para autenticar."
   limite-ips-conta: "&cEsta conta original já atingiu o limite de {limite} IP(s) permitido(s). Autenticação automática bloqueada; aguarde ou entre novamente quando houver vaga."
   sucesso: "&aConta original verificada! Login automático realizado."
-
-seguranca:
-  senha-invalida: "&c{mensagem}"
