@@ -19,15 +19,19 @@ public final class MessagesManager {
     }
 
     public String getTitleBemVindo() {
-        return color(titles.getString("bem-vindo", "&aBem-vindo"));
+        return color(titles.getString("bem-vindo", "&a&lBEM-VINDO!"));
     }
 
     public String getTitleRegistro() {
-        return color(titles.getString("registro", "&eFaça o registro"));
+        return color(titles.getString("registro", "&eUse: /registro <senha> <senha>"));
     }
 
     public String getTitleLogin() {
-        return color(titles.getString("login", "&eFaça o login"));
+        return color(titles.getString("login", "&eUse: /login <senha>"));
+    }
+
+    public String getTitlePremium() {
+        return color(titles.getString("premium", "&eConta original detectada."));
     }
 
     private String color(String value) {
