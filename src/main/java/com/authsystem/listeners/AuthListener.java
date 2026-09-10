@@ -2,7 +2,6 @@ package com.authsystem.listeners;
 
 import com.authsystem.AuthSystem;
 import com.authsystem.util.IpResolver;
-import org.bukkit.ChatColor;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -33,12 +32,16 @@ public class AuthListener implements Listener {
 
     public AuthListener(AuthSystem plugin) { this.plugin = plugin; }
 
+    private String msg(String path, String fallback, String... replacements) {
+        return plugin.getMessagesManager().getChat(path, fallback, replacements);
+    }
+
     @EventHandler
     public void onPreLogin(AsyncPlayerPreLoginEvent event) {
         String ip = event.getAddress().getHostAddress();
         if (plugin.getLoginProtection().estaBloqueado(ip)) {
             long restante = plugin.getLoginProtection().segundosRestantes(ip);
-            event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_OTHER, ChatColor.RED + "Muitas tentativas de login incorretas.\n" + ChatColor.RED + "Tente novamente em " + restante + " segundos.");
+            event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_OTHER, "Muitas tentativas de login incorretas.\nTente novamente em " + restante + " segundos.");
             return;
         }
         if (plugin.getConfig().getBoolean("bloquear-conexao-quando-limite-ip-atingido", true)) {
@@ -46,7 +49,7 @@ public class AuthListener implements Listener {
             if (limiteContas > 0 && plugin.getSessionManager().countAuthenticatedFromIp(ip) >= limiteContas
                     && plugin.getSessionManager().hasOtherAuthenticatedFromIp(ip, event.getUniqueId())) {
                 event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_OTHER,
-                        ChatColor.RED + "Este IP já atingiu o limite de " + limiteContas + " conta(s) autenticada(s) ao mesmo tempo. Aguarde uma vaga para entrar.");
+                        msg("premium.limite-ip", "&cEste IP já atingiu o limite de {limite} conta(s) autenticada(s) ao mesmo tempo. Aguarde uma vaga para entrar.", "{limite}", String.valueOf(limiteContas)));
             }
         }
     }
@@ -54,8 +57,6 @@ public class AuthListener implements Listener {
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
-        // O handshake premium termina em uma tarefa na thread principal. Processamos o estado
-        // de autenticacao no tick seguinte para garantir que o handoff ja esteja publicado.
         plugin.getServer().getScheduler().runTask(plugin, () -> processJoin(player));
     }
 
@@ -69,16 +70,16 @@ public class AuthListener implements Listener {
         boolean registrado = plugin.getPlayerDataManager().isRegistered(player.getName());
         if (registrado) {
             iniciarTitleAutenticacao(player, plugin.getMessagesManager().getTitleBemVindo(), plugin.getMessagesManager().getTitleLogin());
-            player.sendMessage(ChatColor.YELLOW + "Esta conta possui registro. Use /login <senha> para entrar.");
+            player.sendMessage(msg("join.registrado", "&eEsta conta possui registro. Use /login <senha> para entrar."));
         } else {
             iniciarTitleAutenticacao(player, plugin.getMessagesManager().getTitleBemVindo(), plugin.getMessagesManager().getTitleRegistro());
-            player.sendMessage(ChatColor.YELLOW + "Bem-vindo! Use /registro <senha> <confirmar-senha> para criar sua conta.");
+            player.sendMessage(msg("join.nao-registrado", "&eBem-vindo! Use /registro <senha> <confirmar-senha> para criar sua conta."));
         }
 
         int timeoutSegundos = Math.max(1, plugin.getConfig().getInt("tempo-limite-login-segundos", 60));
         BukkitTask task = plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
             if (player.isOnline() && !plugin.getSessionManager().isAuthenticated(player)) {
-                player.kickPlayer(ChatColor.RED + "Você demorou muito para fazer login/registro.");
+                player.kickPlayer(msg("join.timeout", "&cVocê demorou muito para fazer login/registro."));
             }
         }, timeoutSegundos * 20L);
         plugin.getSessionManager().setTimeoutTask(player, task);
@@ -87,27 +88,26 @@ public class AuthListener implements Listener {
     private boolean autenticarPremium(Player player, UUID premiumUuid, String ip) {
         int limiteContas = plugin.getConfig().getInt("max-contas-por-ip", 1);
         if (!plugin.getSessionManager().tryRegisterAuthenticatedIp(ip, player.getUniqueId(), limiteContas)) {
-            player.sendMessage(ChatColor.RED + "Este IP já atingiu o limite de " + limiteContas + " conta(s) autenticada(s) ao mesmo tempo. Você permanece conectado, mas precisa aguardar uma vaga para autenticar.");
+            player.sendMessage(msg("premium.limite-ip", "&cEste IP já atingiu o limite de {limite} conta(s) autenticada(s) ao mesmo tempo. Você permanece conectado, mas precisa aguardar uma vaga para autenticar.", "{limite}", String.valueOf(limiteContas)));
             return false;
         }
 
         int limiteIps = plugin.getConfig().getInt("max-ips-por-conta", 1);
         if (!plugin.getPremiumAccountManager().tryAddIp(premiumUuid, ip, limiteIps)) {
             plugin.getSessionManager().unregisterAuthenticatedIp(ip, player.getUniqueId());
-            player.sendMessage(ChatColor.RED + "Esta conta original já atingiu o limite de " + limiteIps + " IP(s) permitido(s). Autenticação automática bloqueada; aguarde ou entre novamente quando houver vaga.");
+            player.sendMessage(msg("premium.limite-ips-conta", "&cEsta conta original já atingiu o limite de {limite} IP(s) permitido(s). Autenticação automática bloqueada; aguarde ou entre novamente quando houver vaga.", "{limite}", String.valueOf(limiteIps)));
             return false;
         }
 
         plugin.getSessionManager().markPremium(player.getUniqueId());
         plugin.getSessionManager().setAuthenticated(player, true);
         enviarTitleAutenticacao(player, plugin.getMessagesManager().getTitleBemVindo(), plugin.getMessagesManager().getTitlePremium());
-        player.sendMessage(ChatColor.GREEN + "Conta original verificada! Login automático realizado.");
+        player.sendMessage(msg("premium.sucesso", "&aConta original verificada! Login automático realizado."));
         return true;
     }
 
     private void iniciarTitleAutenticacao(Player player, String titulo, String subtitulo) {
         player.sendTitle(titulo, subtitulo, 10, 60, 10);
-
         BukkitTask task = plugin.getServer().getScheduler().runTaskTimer(plugin, () -> {
             if (!player.isOnline() || plugin.getSessionManager().isAuthenticated(player)) {
                 plugin.getSessionManager().cancelTitleTask(player);
@@ -143,10 +143,15 @@ public class AuthListener implements Listener {
         String cmd = (separator >= 0 ? message.substring(0, separator) : message).toLowerCase(Locale.ROOT);
         if (!COMANDOS_PERMITIDOS.contains(cmd)) {
             event.setCancelled(true);
-            event.getPlayer().sendMessage(ChatColor.RED + "Faça login ou se registre antes de usar comandos.");
+            event.getPlayer().sendMessage(msg("protecao.comando-bloqueado", "&cFaça login ou se registre antes de usar comandos."));
         }
     }
-    @EventHandler public void onChat(AsyncPlayerChatEvent event) { if (precisaBloquear(event.getPlayer())) { event.setCancelled(true); event.getPlayer().sendMessage(ChatColor.RED + "Faça login ou se registre antes de conversar no chat."); } }
+    @EventHandler public void onChat(AsyncPlayerChatEvent event) {
+        if (precisaBloquear(event.getPlayer())) {
+            event.setCancelled(true);
+            event.getPlayer().sendMessage(msg("protecao.chat-bloqueado", "&cFaça login ou se registre antes de conversar no chat."));
+        }
+    }
     @EventHandler public void onDamage(EntityDamageEvent event) { if (event.getEntity() instanceof Player player && precisaBloquear(player)) event.setCancelled(true); }
     @EventHandler public void onFoodLevelChange(FoodLevelChangeEvent event) { if (event.getEntity() instanceof Player player && precisaBloquear(player)) event.setCancelled(true); }
     @EventHandler public void onBlockBreak(BlockBreakEvent event) { if (precisaBloquear(event.getPlayer())) event.setCancelled(true); }
