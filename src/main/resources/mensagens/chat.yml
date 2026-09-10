@@ -55,4 +55,4 @@ protecao:
 premium:
   limite-ip: "&cEste IP já atingiu o limite de {limite} conta(s) autenticada(s) ao mesmo tempo. Você permanece conectado, mas precisa aguardar uma vaga para autenticar."
   limite-ips-conta: "&cEsta conta original já atingiu o limite de {limite} IP(s) permitido(s). Autenticação automática bloqueada; aguarde ou entre novamente quando houver vaga."
-  sucesso: "&aConta original verificada! Login automático realizado.">
+  sucesso: "&aConta original verificada! Login automático realizado."
