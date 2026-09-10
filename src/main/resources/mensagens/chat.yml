@@ -1,10 +1,11 @@
 # Mensagens exibidas no chat pelo LoginPlus.
 # Use & para cores do Minecraft.
+# Linhas vazias criam o espaçamento visual desejado.
 # Placeholders: {restante}, {limite}, {tentativas}, {max}, {segundos}.
 
 join:
-  registrado: "&eEsta conta possui registro. Use /login <senha> para entrar."
-  nao-registrado: "&eBem-vindo! Use /registro <senha> <confirmar-senha> para criar sua conta."
+  registrado: "\n  \n&eUse: /login <senha>\n  \n"
+  nao-registrado: "\n  \n&eUse: /registro <senha> <senha>\n  \n"
   timeout: "&cVocê demorou muito para fazer login/registro."
 
 login:
@@ -12,7 +13,7 @@ login:
   ja-logado: "&e⚠ &fVocê já está logado."
   premium: "&e⚠ &fSua conta original já foi verificada automaticamente. Não é preciso usar /login."
   sem-conta: "&c✖ &fVocê ainda não tem conta. Use /registro <senha> <confirmar-senha>."
-  uso: "&e➜ &fUso: /login <senha>"
+  uso: "\n  \n&eUse: /login <senha>\n  \n"
   ip-indisponivel: "&c✖ &fNão foi possível identificar seu IP. Tente entrar novamente."
   ip-bloqueado: "&c✖ &fEste IP está temporariamente bloqueado por excesso de tentativas. Tente novamente mais tarde."
   conta-bloqueada: "&c✖ &fEsta conta está temporariamente bloqueada por excesso de tentativas. Tente novamente em {restante} segundos."
@@ -33,7 +34,7 @@ registro:
   premium: "&eSua conta original já foi verificada automaticamente. Não é preciso se registrar."
   ja-registrado: "&cVocê já possui uma conta registrada. Use /login <senha>."
   identidade-protegida: "&cEsta identidade está protegida e não pode ser registrada como uma nova conta."
-  uso: "&cUso correto: /registro <senha> <confirmar-senha>"
+  uso: "\n  \n&eUse: /registro <senha> <senha>\n  \n"
   ip-indisponivel: "&cNão foi possível identificar seu IP. Tente entrar novamente."
   processamento-andamento: "&eSeu registro já está sendo processado. Aguarde um instante."
   processando: "&eProcessando seu registro com segurança..."
@@ -54,4 +55,4 @@ protecao:
 premium:
   limite-ip: "&cEste IP já atingiu o limite de {limite} conta(s) autenticada(s) ao mesmo tempo. Você permanece conectado, mas precisa aguardar uma vaga para autenticar."
   limite-ips-conta: "&cEsta conta original já atingiu o limite de {limite} IP(s) permitido(s). Autenticação automática bloqueada; aguarde ou entre novamente quando houver vaga."
-  sucesso: "&aConta original verificada! Login automático realizado."
+  sucesso: "&aConta original verificada! Login automático realizado.">
