@@ -68,10 +68,10 @@ public class AuthListener implements Listener {
 
         boolean registrado = plugin.getPlayerDataManager().isRegistered(player.getName());
         if (registrado) {
-            enviarTitleAutenticacao(player, plugin.getMessagesManager().getTitleBemVindo(), plugin.getMessagesManager().getTitleLogin());
+            iniciarTitleAutenticacao(player, plugin.getMessagesManager().getTitleBemVindo(), plugin.getMessagesManager().getTitleLogin());
             player.sendMessage(ChatColor.YELLOW + "Esta conta possui registro. Use /login <senha> para entrar.");
         } else {
-            enviarTitleAutenticacao(player, plugin.getMessagesManager().getTitleBemVindo(), plugin.getMessagesManager().getTitleRegistro());
+            iniciarTitleAutenticacao(player, plugin.getMessagesManager().getTitleBemVindo(), plugin.getMessagesManager().getTitleRegistro());
             player.sendMessage(ChatColor.YELLOW + "Bem-vindo! Use /registro <senha> <confirmar-senha> para criar sua conta.");
         }
 
@@ -103,6 +103,19 @@ public class AuthListener implements Listener {
         enviarTitleAutenticacao(player, plugin.getMessagesManager().getTitleBemVindo(), plugin.getMessagesManager().getTitlePremium());
         player.sendMessage(ChatColor.GREEN + "Conta original verificada! Login automático realizado.");
         return true;
+    }
+
+    private void iniciarTitleAutenticacao(Player player, String titulo, String subtitulo) {
+        player.sendTitle(titulo, subtitulo, 10, 60, 10);
+
+        BukkitTask task = plugin.getServer().getScheduler().runTaskTimer(plugin, () -> {
+            if (!player.isOnline() || plugin.getSessionManager().isAuthenticated(player)) {
+                plugin.getSessionManager().cancelTitleTask(player);
+                return;
+            }
+            player.sendTitle(titulo, subtitulo, 0, 60, 10);
+        }, 40L, 40L);
+        plugin.getSessionManager().setTitleTask(player, task);
     }
 
     private void enviarTitleAutenticacao(Player player, String titulo, String subtitulo) { player.sendTitle(titulo, subtitulo, 10, 60, 10); }
