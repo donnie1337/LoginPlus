@@ -21,6 +21,8 @@ import io.netty.channel.ChannelPipeline;
 import io.netty.handler.codec.MessageToByteEncoder;
 import io.netty.handler.codec.MessageToMessageDecoder;
 import net.kyori.adventure.text.Component;
+import org.bukkit.Bukkit;
+import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitTask;
 
 import javax.crypto.Cipher;
@@ -40,6 +42,7 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
     private static final long FALLBACK_MS = 15000L;
     private static final long CONNECTION_TTL_MS = 20000L;
     private static final String PREMIUM_ACCOUNT_MESSAGE = "Esta conta ja esta cadastrada no servidor como conta original. Entre usando o Minecraft original com este nickname.";
+    private static final String DUPLICATE_SESSION_MESSAGE = "Esta conta ja esta conectada ao servidor.";
     private final PremiumLoginVerifier verifier;
     private final PremiumAuthenticator authenticator;
     private final AuthSystem plugin;
@@ -80,11 +83,6 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
             handleVerificationFailure(user, version, username, playerUuid, null, "IP indisponivel durante a verificacao premium.");
             return;
         }
-
-        // Mesmo que o nickname ja possua um cadastro cracked, nunca pule a verificacao
-        // premium. O jogador pode estar entrando com a conta original e, nesse caso,
-        // a prova da Mojang deve ter a oportunidade de promover a sessao para premium.
-        // A decisao cracked/premium so e tomada depois do desafio criptografico.
 
         String key = connectionKey(user);
         if (key == null) {
@@ -171,10 +169,24 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
             if (!connections.remove(key, pending)) return;
             releasePending(pending.ip());
             UUID mojangUuid = result.orElse(null);
+
             if (mojangUuid != null && pending.playerUuid() != null) {
                 authenticator.markVerified(pending.username(), pending.ip(), pending.playerUuid(), mojangUuid);
                 plugin.getPlayerDataManager().markPremiumIdentity(pending.username(), mojangUuid, pending.ip());
                 LOGGER.info("Identidade premium verificada e protegida para " + pending.username());
+
+                // Em offline-mode, uma segunda conexao com o mesmo nickname pode fazer
+                // o servidor desconectar a sessao antiga quando o login prossegue.
+                // Recusamos a nova conexao antes de resume() para preservar a sessao
+                // que ja esta online.
+                Player online = Bukkit.getPlayerExact(pending.username());
+                if (online != null && online.isOnline()) {
+                    LOGGER.warning("Segunda conexao recusada para a conta premium ja conectada " + pending.username());
+                    disconnect(user, DUPLICATE_SESSION_MESSAGE);
+                    authenticator.clear(pending.username(), pending.ip(), pending.playerUuid());
+                    return;
+                }
+
                 resume(user, pending.version(), pending.username(), pending.playerUuid());
             } else if (mojangUuid != null) {
                 LOGGER.warning("A Mojang confirmou a conta premium de " + pending.username() + ", mas o cliente nao apresentou UUID de conexao valido.");
@@ -277,7 +289,6 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
         if (pipeline.get("authsystem-encrypt") == null) pipeline.addBefore("prepender", "authsystem-encrypt", new AesCfb8Encoder(encrypt));
     }
 
-    /** Usa o identificador do canal, e nao IP:porta, para impedir colisao entre conexoes. */
     private static String connectionKey(User user) {
         if (user == null || user.getChannel() == null) return null;
         Object rawChannel = user.getChannel();
@@ -286,14 +297,24 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
     }
 
     private record PendingConnection(String username, ClientVersion version, UUID playerUuid, String ip, long createdAt) {}
+
     private static final class AesCfb8Decoder extends MessageToMessageDecoder<ByteBuf> {
         private final Cipher cipher;
         private AesCfb8Decoder(Cipher cipher) { this.cipher = cipher; }
-        @Override protected void decode(ChannelHandlerContext ctx, ByteBuf msg, List<Object> out) { byte[] input = new byte[msg.readableBytes()]; msg.readBytes(input); out.add(io.netty.buffer.Unpooled.wrappedBuffer(cipher.update(input))); }
+        @Override protected void decode(ChannelHandlerContext ctx, ByteBuf msg, List<Object> out) {
+            byte[] input = new byte[msg.readableBytes()];
+            msg.readBytes(input);
+            out.add(io.netty.buffer.Unpooled.wrappedBuffer(cipher.update(input)));
+        }
     }
+
     private static final class AesCfb8Encoder extends MessageToByteEncoder<ByteBuf> {
         private final Cipher cipher;
         private AesCfb8Encoder(Cipher cipher) { this.cipher = cipher; }
-        @Override protected void encode(ChannelHandlerContext ctx, ByteBuf input, ByteBuf out) { byte[] data = new byte[input.readableBytes()]; input.readBytes(data); out.writeBytes(cipher.update(data)); }
+        @Override protected void encode(ChannelHandlerContext ctx, ByteBuf input, ByteBuf out) {
+            byte[] data = new byte[input.readableBytes()];
+            input.readBytes(data);
+            out.writeBytes(cipher.update(data));
+        }
     }
 }
