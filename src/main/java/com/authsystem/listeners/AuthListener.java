@@ -67,6 +67,14 @@ public class AuthListener implements Listener {
 
         if (verificacaoPremium != null && autenticarPremium(player, verificacaoPremium, ip)) return;
 
+        // Uma identidade premium ja conhecida nunca pode cair no fluxo de registro.
+        // Se a prova automatica nao estiver disponivel, a conexao e encerrada em vez
+        // de oferecer um cadastro para o mesmo nickname.
+        if (plugin.getPlayerDataManager().isPremiumIdentity(player.getName())) {
+            player.kickPlayer("Esta conta ja esta cadastrada no servidor como conta original. Entre usando o Minecraft original com este nickname.");
+            return;
+        }
+
         boolean registrado = plugin.getPlayerDataManager().isRegistered(player.getName());
         if (registrado) {
             iniciarTitleAutenticacao(player, plugin.getMessagesManager().getTitleBemVindo(), plugin.getMessagesManager().getTitleLogin());
