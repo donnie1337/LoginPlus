@@ -2,6 +2,7 @@ package com.authsystem.listeners;
 
 import com.authsystem.AuthSystem;
 import com.authsystem.util.IpResolver;
+import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -27,6 +28,7 @@ import java.util.UUID;
 
 /** Controla o estado de autenticacao depois do handshake e a protecao de login. */
 public class AuthListener implements Listener {
+    private static final String DUPLICATE_SESSION_MESSAGE = "Esta conta ja esta conectada ao servidor.";
     private final AuthSystem plugin;
     private static final List<String> COMANDOS_PERMITIDOS = List.of("/login", "/registro", "/register", "/cadastrar");
 
@@ -36,9 +38,20 @@ public class AuthListener implements Listener {
         return plugin.getMessagesManager().getChat(path, fallback, replacements);
     }
 
-    @EventHandler
+    @EventHandler(priority = EventPriority.LOWEST)
     public void onPreLogin(AsyncPlayerPreLoginEvent event) {
         String ip = event.getAddress().getHostAddress();
+
+        // Protecao global contra duas conexoes com o mesmo nickname.
+        // Funciona tanto para contas premium quanto cracked e acontece antes
+        // do PlayerJoinEvent, evitando que o servidor substitua a sessao antiga.
+        String username = event.getName();
+        Player online = findOnlinePlayerIgnoreCase(username);
+        if (online != null && online.isOnline()) {
+            event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_OTHER, DUPLICATE_SESSION_MESSAGE);
+            return;
+        }
+
         if (plugin.getLoginProtection().estaBloqueado(ip)) {
             long restante = plugin.getLoginProtection().segundosRestantes(ip);
             event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_OTHER, "Muitas tentativas de login incorretas.\nTente novamente em " + restante + " segundos.");
@@ -52,6 +65,14 @@ public class AuthListener implements Listener {
                         msg("premium.limite-ip", "&cEste IP já atingiu o limite de {limite} conta(s) autenticada(s) ao mesmo tempo. Aguarde uma vaga para entrar.", "{limite}", String.valueOf(limiteContas)));
             }
         }
+    }
+
+    private Player findOnlinePlayerIgnoreCase(String username) {
+        if (username == null || username.isBlank()) return null;
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            if (player.getName().equalsIgnoreCase(username)) return player;
+        }
+        return null;
     }
 
     @EventHandler
