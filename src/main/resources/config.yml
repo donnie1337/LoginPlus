@@ -1,19 +1,37 @@
 # ============================================================
-# CONFIGURACOES DO LOGINPLUS
+# LoginPlus - Configuração principal
+# ============================================================
+# Todas as opções deste arquivo controlam login, registro,
+# proteção contra tentativas abusivas e verificação premium.
+#
+# Os nomes técnicos das chaves e o valor "cracked" são preservados
+# porque fazem parte da compatibilidade interna do plugin.
 # ============================================================
 
+# ------------------------------------------------------------
+# LOGIN
+# ------------------------------------------------------------
 tempo-limite-login-segundos: 60
 max-tentativas-login: 3
 bloqueio-apos-exceder-tentativas-minutos: 5
 
+# ------------------------------------------------------------
+# SENHAS
+# ------------------------------------------------------------
 minimo-caracteres-senha: 7
 maximo-caracteres-senha: 64
 
+# ------------------------------------------------------------
+# REGISTRO
+# ------------------------------------------------------------
 registro:
   max-tentativas-por-ip: 3
   janela-minutos: 5
   cooldown-segundos: 30
 
+# ------------------------------------------------------------
+# SEGURANÇA
+# ------------------------------------------------------------
 seguranca:
   pbkdf2-iteracoes: 600000
   max-processamentos-pbkdf2-simultaneos: 2
@@ -21,10 +39,14 @@ seguranca:
   max-handshakes-premium-pendentes: 100
   max-handshakes-premium-por-ip: 3
 
-  # Permite contas cracked que ainda nao foram confirmadas como premium.
-  # Um nickname ja confirmado como premium continua protegido permanentemente.
+  # Ação aplicada quando a verificação premium falha.
+  # O valor "cracked" é um identificador técnico do LoginPlus.
+  # Nicknames já confirmados como premium continuam protegidos.
   acao-falha-verificacao-premium: cracked
 
+# ------------------------------------------------------------
+# LIMITES POR IP E CONTA
+# ------------------------------------------------------------
 max-contas-por-ip: 2
 bloquear-conexao-quando-limite-ip-atingido: true
 max-ips-por-conta: 1
