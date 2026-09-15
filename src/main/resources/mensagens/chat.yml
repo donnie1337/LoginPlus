@@ -1,7 +1,7 @@
 # Mensagens exibidas no chat pelo LoginPlus.
 # Use & para cores do Minecraft.
 # Linhas vazias criam o espaçamento visual desejado.
-# Placeholders: {restante}, {limite}, {tentativas}, {max}, {segundos}.
+# Placeholders: {restante}, {limite}, {tentativas}, {max}, {segundos}, {minimo}.
 
 join:
   registrado: "\n  \n&eUse: /login <senha>\n  \n\n  \n"
@@ -46,6 +46,7 @@ registro:
   muitas-tentativas: "Muitas tentativas de registro. Aguarde alguns minutos antes de tentar novamente."
   cooldown: "Aguarde {segundos} segundo(s) antes de tentar registrar novamente."
   senhas-nao-coincidem: "As senhas não coincidem."
+  senha-curta: "Sua senha precisa ter pelo menos {minimo} caracteres."
   senha-invalida: "{mensagem}"
 
 protecao:
