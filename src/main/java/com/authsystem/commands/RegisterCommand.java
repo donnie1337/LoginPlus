@@ -73,6 +73,12 @@ public class RegisterCommand implements CommandExecutor {
         String confirmar = args[1];
         int minSenha = plugin.getConfig().getInt("minimo-caracteres-senha", PasswordUtils.DEFAULT_MIN_PASSWORD_LENGTH);
         int maxSenha = plugin.getConfig().getInt("maximo-caracteres-senha", PasswordUtils.DEFAULT_MAX_PASSWORD_LENGTH);
+
+        if (senha.length() < minSenha) {
+            player.sendMessage(msg("registro.senha-curta", "&cSua senha precisa ter pelo menos {minimo} caracteres.", "{minimo}", String.valueOf(minSenha)));
+            return true;
+        }
+
         String erroSenha = PasswordUtils.validatePassword(senha, minSenha, maxSenha);
         if (erroSenha != null) {
             player.sendMessage(msg("registro.senha-invalida", "&c{mensagem}", "{mensagem}", erroSenha));
