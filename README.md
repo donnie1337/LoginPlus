@@ -1,70 +1,104 @@
 # LoginPlus
 
-Plugin de autenticação para servidores Minecraft **Spigot 26.2**, desenvolvido para servidores `offline-mode/cracked`, com suporte a contas locais e verificação Premium.
+O LoginPlus é o sistema de login e registro do meu servidor.
 
-## ✨ Funcionalidades
+Ele foi feito para servidor Spigot 26.2 em `offline-mode/cracked`, mas também verifica contas Premium de verdade quando possível.
 
-### 🔐 Autenticação por senha
-- `/login <senha>` para contas registradas.
-- `/registro <senha> <confirmar-senha>` para criar contas locais.
-- Senhas protegidas com **PBKDF2-HMAC-SHA256**, salt aleatório e 600.000 iterações para novos hashes.
-- Compatibilidade e atualização de hashes antigos.
-- Validação configurável de tamanho e formato da senha.
-- Processamento pesado de PBKDF2 fora da thread principal.
-- Proteção contra operações simultâneas de login e registro.
+A ideia é simples: o jogador entra, faz login ou registro e, depois de autenticado, os outros plugins podem liberar os recursos normalmente.
 
-### 👑 Verificação Premium
-- Verificação real da sessão Premium, sem confiar somente no nick.
+## Login e registro
+
+- `/login <senha>` faz login em uma conta já registrada.
+- `/registro <senha> <confirmar-senha>` cria uma conta local.
+- `/register <senha> <confirmar-senha>` é alias de `/registro`.
+- `/cadastrar <senha> <confirmar-senha>` também é alias de `/registro`.
+- Senhas protegidas com PBKDF2-HMAC-SHA256.
+- Salt aleatório para os novos hashes.
+- 600.000 iterações para novos hashes.
+- Compatibilidade com hashes antigos e atualização quando necessário.
+- Tamanho e formato mínimo da senha configuráveis.
+- O processamento pesado da senha não fica preso na thread principal.
+
+## Verificação Premium
+
+O LoginPlus também tenta confirmar se o jogador possui uma sessão Premium válida.
+
+- Verificação real da sessão.
 - Handshake criptográfico com RSA 2048 e AES/CFB8.
 - Consulta ao Session Server da Mojang.
-- Autenticação automática quando a sessão Premium é confirmada.
-- Timeout, limite de consultas e limpeza de verificações pendentes.
-- Se a verificação Premium não for confirmada, o jogador segue pelo fluxo cracked conforme a configuração.
-- **Conta local sempre tem prioridade** sobre a autenticação Premium do mesmo nick.
+- Login automático quando a sessão Premium é confirmada.
+- Timeout e limite de consultas configuráveis.
+- Limpeza das verificações que ficaram pendentes.
+- Se a verificação Premium não for confirmada, o jogador segue pelo sistema cracked configurado.
+- Conta local tem prioridade quando existe uma conta registrada para o mesmo nick.
 
-### 🛡️ Anti-bypass
-Enquanto não estiver autenticado, o jogador é protegido contra ações que poderiam permitir acesso ao servidor antes do login, incluindo movimento, chat, interação, inventários, blocos, entidades, veículos e outras ações indiretas.
+## Proteção antes do login
 
-### 🚫 Proteção contra força bruta
-- Tentativas incorretas controladas por IP e por conta.
-- Bloqueio temporário após exceder o limite configurado.
+Enquanto o jogador ainda não estiver autenticado, o LoginPlus bloqueia ações que poderiam permitir que ele usasse o servidor antes de fazer login.
+
+Isso inclui coisas como:
+
+- Movimento.
+- Chat.
+- Interação.
+- Inventários.
+- Blocos.
+- Entidades.
+- Veículos.
+- Outras ações protegidas pelo sistema.
+
+## Proteção contra tentativas de senha
+
+O plugin também possui proteção contra tentativa de força bruta.
+
+- Controle de tentativas por IP.
+- Controle de tentativas por conta.
+- Bloqueio temporário quando o limite é atingido.
 - Expiração das proteções antigas.
 
-### 🌐 Controle de sessões
-- Limite configurável de contas autenticadas por IP.
-- Limite configurável de IPs por conta.
-- Controle das sessões autenticadas e reservas de conexão.
+## Controle de sessões
 
-### 💾 Persistência
-- Contas locais e Premium armazenadas em YAML.
-- Salvamento assíncrono para reduzir impacto no servidor.
-- Snapshots consistentes e proteção contra gravações concorrentes.
-- Salvamento seguro durante o desligamento.
+- Limite de contas autenticadas por IP.
+- Limite de IPs por conta.
+- Controle das sessões autenticadas.
+- Reserva de conexão para evitar conflitos durante o login.
 
-## 🎮 Comandos
+## Dados
 
-| Comando | Função |
+As contas ficam salvas em YAML.
+
+O salvamento é feito de forma assíncrona sempre que possível, com proteção contra gravações concorrentes e salvamento seguro quando o servidor é desligado.
+
+## Integração com os outros plugins
+
+O LoginPlus fornece para os outros plugins a informação de que o jogador já foi autenticado.
+
+Por exemplo, o CargoPlus usa esse estado para não entregar permissões de cargo para um jogador que ainda não fez login.
+
+## Comandos
+
+| Comando | O que faz |
 |---|---|
-| `/login <senha>` | Autentica uma conta registrada. |
+| `/login <senha>` | Faz login na conta. |
 | `/registro <senha> <confirmar-senha>` | Cria uma conta local. |
 | `/register <senha> <confirmar-senha>` | Alias de `/registro`. |
 | `/cadastrar <senha> <confirmar-senha>` | Alias de `/registro`. |
 
-## 🔗 Integração
-
-O LoginPlus fornece o estado de autenticação para os demais plugins do ecossistema. O **CargoPlus**, por exemplo, utiliza essa informação para aplicar cargos e permissões somente a jogadores autenticados.
-
-## 🏗️ Plataforma
+## Plataforma
 
 - Java 26
 - Spigot API 26.2
 - Maven
 - PacketEvents
 
-## 🧪 Build
+## Build
 
 ```bash
 mvn -B clean package
 ```
 
-O projeto possui workflow de build no GitHub Actions.
+O projeto possui build automático pelo GitHub Actions.
+
+## Status
+
+O LoginPlus está em desenvolvimento e é o responsável pelo sistema de autenticação do meu servidor. A ideia é manter o login seguro, simples para o jogador e bem integrado com os outros plugins.
