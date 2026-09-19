@@ -1,6 +1,7 @@
 package com.authsystem.listeners;
 
 import com.authsystem.AuthSystem;
+import org.bukkit.GameMode;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -9,6 +10,7 @@ import org.bukkit.event.entity.EntityPickupItemEvent;
 import org.bukkit.event.entity.EntityTargetEvent;
 import org.bukkit.event.entity.ProjectileLaunchEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryCreativeEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.inventory.InventoryOpenEvent;
 import org.bukkit.event.inventory.InventoryType;
@@ -69,6 +71,21 @@ public class AntiBypassListener implements Listener {
     public void onInventoryClick(InventoryClickEvent event) {
         if (event.getWhoClicked() instanceof Player player && bloqueado(player)) {
             event.setCancelled(true);
+        }
+    }
+
+    /**
+     * Jogadores autenticados em Creative devem conseguir usar normalmente o
+     * inventario criativo, mesmo que outro listener tenha cancelado o evento
+     * generico de inventario antes deste listener.
+     */
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onCreativeInventory(InventoryCreativeEvent event) {
+        if (!(event.getWhoClicked() instanceof Player player)) {
+            return;
+        }
+        if (!bloqueado(player) && player.getGameMode() == GameMode.CREATIVE) {
+            event.setCancelled(false);
         }
     }
 
