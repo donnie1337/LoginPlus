@@ -22,9 +22,10 @@ import java.util.logging.Level;
 
 /** Guarda os dados de cadastro das contas, incluindo UUID, data de registro, IPs e identidade premium confirmada. */
 public class PlayerDataManager {
-    private static final DateTimeFormatter FORMATO_REGISTRO = DateTimeFormatter.ofPattern("ddMMyyyyHH");
-    private static final DateTimeFormatter FORMATO_EXIBICAO_REGISTRO = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
-    private static final DateTimeFormatter FORMATO_LEITURA_REGISTRO = DateTimeFormatter.ofPattern("ddMMyyyyHHmm");
+    private static final DateTimeFormatter FORMATO_REGISTRO = DateTimeFormatter.ofPattern("ddMMyyHHmmss");
+    private static final DateTimeFormatter FORMATO_EXIBICAO_REGISTRO = DateTimeFormatter.ofPattern("dd/MM/yy/HH/mm/ss");
+    private static final DateTimeFormatter FORMATO_LEITURA_REGISTRO = DateTimeFormatter.ofPattern("ddMMyyHHmmss");
+    private static final DateTimeFormatter FORMATO_LEITURA_REGISTRO_LEGADO = DateTimeFormatter.ofPattern("ddMMyyyyHH");
 
     private final AuthSystem plugin;
     private final File file;
@@ -178,7 +179,15 @@ public class PlayerDataManager {
         String value = data.getString(key(username) + ".registrado-em");
         if (value == null || value.isBlank()) return "Desconhecida";
         try {
-            return FORMATO_EXIBICAO_REGISTRO.format(LocalDateTime.parse(value + "00", FORMATO_LEITURA_REGISTRO));
+            LocalDateTime dataRegistro;
+            if (value.length() == 12) {
+                dataRegistro = LocalDateTime.parse(value, FORMATO_LEITURA_REGISTRO);
+            } else if (value.length() == 10) {
+                dataRegistro = LocalDateTime.parse(value + "00", FORMATO_LEITURA_REGISTRO_LEGADO);
+            } else {
+                return "Desconhecida";
+            }
+            return FORMATO_EXIBICAO_REGISTRO.format(dataRegistro);
         } catch (RuntimeException ignored) {
             return "Desconhecida";
         }
