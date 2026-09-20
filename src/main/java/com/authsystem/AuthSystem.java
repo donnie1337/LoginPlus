@@ -178,6 +178,10 @@ public class AuthSystem extends JavaPlugin {
         return playerDataManager != null && playerDataManager.isProtectedIdentity(username);
     }
     public PlayerDataManager getPlayerDataManager() { return playerDataManager; }
+    /** Retorna a data de criação da conta em formato de exibição para integrações externas. */
+    public String getRegistrationDate(String username) {
+        return playerDataManager == null ? "Desconhecida" : playerDataManager.getRegistrationDate(username);
+    }
     public SessionManager getSessionManager() { return sessionManager; }
     public LoginProtection getLoginProtection() { return loginProtection; }
     public PremiumAuthenticator getPremiumAuthenticator() { return premiumAuthenticator; }
