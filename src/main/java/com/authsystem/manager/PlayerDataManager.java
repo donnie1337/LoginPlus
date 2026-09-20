@@ -183,7 +183,7 @@ public class PlayerDataManager {
             if (value.length() == 12) {
                 dataRegistro = LocalDateTime.parse(value, FORMATO_LEITURA_REGISTRO);
             } else if (value.length() == 10) {
-                dataRegistro = LocalDateTime.parse(value + "00", FORMATO_LEITURA_REGISTRO_LEGADO);
+                dataRegistro = LocalDateTime.parse(value, FORMATO_LEITURA_REGISTRO_LEGADO);
             } else {
                 return "Desconhecida";
             }
