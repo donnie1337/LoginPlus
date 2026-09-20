@@ -24,6 +24,7 @@ import java.util.logging.Level;
 public class PlayerDataManager {
     private static final DateTimeFormatter FORMATO_REGISTRO = DateTimeFormatter.ofPattern("ddMMyyyyHH");
     private static final DateTimeFormatter FORMATO_EXIBICAO_REGISTRO = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
+    private static final DateTimeFormatter FORMATO_LEITURA_REGISTRO = DateTimeFormatter.ofPattern("ddMMyyyyHHmm");
 
     private final AuthSystem plugin;
     private final File file;
@@ -177,7 +178,7 @@ public class PlayerDataManager {
         String value = data.getString(key(username) + ".registrado-em");
         if (value == null || value.isBlank()) return "Desconhecida";
         try {
-            return FORMATO_EXIBICAO_REGISTRO.format(LocalDateTime.parse(value, FORMATO_REGISTRO));
+            return FORMATO_EXIBICAO_REGISTRO.format(LocalDateTime.parse(value + "00", FORMATO_LEITURA_REGISTRO));
         } catch (RuntimeException ignored) {
             return "Desconhecida";
         }
