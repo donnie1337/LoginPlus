@@ -23,6 +23,7 @@ import java.util.logging.Level;
 /** Guarda os dados de cadastro das contas, incluindo UUID, data de registro, IPs e identidade premium confirmada. */
 public class PlayerDataManager {
     private static final DateTimeFormatter FORMATO_REGISTRO = DateTimeFormatter.ofPattern("ddMMyyyyHH");
+    private static final DateTimeFormatter FORMATO_EXIBICAO_REGISTRO = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
 
     private final AuthSystem plugin;
     private final File file;
@@ -168,6 +169,18 @@ public class PlayerDataManager {
         if (ip != null && !ip.isBlank()) data.set(base + ".premium-ip", ip);
         data.set(base + ".premium-verificado-em", FORMATO_REGISTRO.format(LocalDateTime.now()));
         scheduleAsyncSave();
+    }
+
+    /** Retorna a data de criação da conta em formato próprio para exibição. */
+    public synchronized String getRegistrationDate(String username) {
+        if (username == null || username.isBlank()) return "Desconhecida";
+        String value = data.getString(key(username) + ".registrado-em");
+        if (value == null || value.isBlank()) return "Desconhecida";
+        try {
+            return FORMATO_EXIBICAO_REGISTRO.format(LocalDateTime.parse(value, FORMATO_REGISTRO));
+        } catch (RuntimeException ignored) {
+            return "Desconhecida";
+        }
     }
 
     public synchronized PasswordData getPasswordData(String username) {
