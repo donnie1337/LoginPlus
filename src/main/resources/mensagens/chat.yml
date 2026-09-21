@@ -5,47 +5,11 @@
 
 join:
   primeiro-acesso:
-    registro: |+
-      
-       &aOlá! Pronto para começar a sua jornada survival?
-
-        &e* Equipe-se, siga em frente e escolha onde sua jornada vai começar;
-        &e* Jogue limpo: o &c&lSentinela vigia &eestas terras contra trapaceiros...
-        &e* Lembre-se: explore, construa e divirta-se em primeiro lugar!
-
-       &aDicas de sobrevivência, spoilers e eventos: &discord.gg/redeglow
-      
-    premium: |+
-      
-       &aOlá! Pronto para começar a sua jornada survival?
-
-        &e* Equipe-se, siga em frente e escolha onde sua jornada vai começar;
-        &e* Jogue limpo: o &c&lSentinela vigia &eestas terras contra trapaceiros...
-        &e* Lembre-se: explore, construa e divirta-se em primeiro lugar!
-
-       &aDicas de sobrevivência, spoilers e eventos: &discord.gg/redeglow
-
+    registro: "\n\n  &aOlá! Pronto para começar a sua jornada survival?\n\n  &e* Equipe-se, siga em frente e escolha onde sua jornada vai começar;\n  &e* Jogue limpo: o &c&lSentinela vigia &eestas terras contra trapaceiros...\n  &e* Lembre-se: explore, construa e divirta-se em primeiro lugar!\n\n  &aDicas de sobrevivência, spoilers e eventos: &ddiscord.gg/redeglow\n"
+    premium: "\n\n  &aOlá! Pronto para começar a sua jornada survival?\n\n  &e* Equipe-se, siga em frente e escolha onde sua jornada vai começar;\n  &e* Jogue limpo: o &c&lSentinela vigia &eestas terras contra trapaceiros...\n  &e* Lembre-se: explore, construa e divirta-se em primeiro lugar!\n\n  &aDicas de sobrevivência, spoilers e eventos: &ddiscord.gg/redeglow\n"
   retorno:
-    login: |+
-      
-       &aOlá! Pronto para continuar a sua jornada survival?
-
-        &e* Equipe-se, siga em frente e escolha onde sua jornada vai começar;
-        &e* Jogue limpo: o &c&lSentinela vigia &eestas terras contra trapaceiros...
-        &e* Lembre-se: explore, construa e divirta-se em primeiro lugar!
-
-       &aDicas de sobrevivência, spoilers e eventos: &discord.gg/redeglow
-      
-    premium: |+
-      
-       &aOlá! Pronto para continuar a sua jornada survival?
-
-        &e* Equipe-se, siga em frente e escolha onde sua jornada vai começar;
-        &e* Jogue limpo: o &c&lSentinela vigia &eestas terras contra trapaceiros...
-        &e* Lembre-se: explore, construa e divirta-se em primeiro lugar!
-
-       &aDicas de sobrevivência, spoilers e eventos: &discord.gg/redeglow
-      
+    login: "\n\n  &aOlá! Pronto para continuar a sua jornada survival?\n\n  &e* Equipe-se, siga em frente e escolha onde sua jornada vai começar;\n  &e* Jogue limpo: o &c&lSentinela vigia &eestas terras contra trapaceiros...\n  &e* Lembre-se: explore, construa e divirta-se em primeiro lugar!\n\n  &aDicas de sobrevivência, spoilers e eventos: &ddiscord.gg/redeglow\n"
+    premium: "\n\n  &aOlá! Pronto para continuar a sua jornada survival?\n\n  &e* Equipe-se, siga em frente e escolha onde sua jornada vai começar;\n  &e* Jogue limpo: o &c&lSentinela vigia &eestas terras contra trapaceiros...\n  &e* Lembre-se: explore, construa e divirta-se em primeiro lugar!\n\n  &aDicas de sobrevivência, spoilers e eventos: &ddiscord.gg/redeglow\n"
   registrado: "\n  \n&bUse: /login <senha>\n  \n\n  \n"
   nao-registrado: "\n  \n&bUse: /registro <senha> <senha>\n  \n\n  \n"
   timeout: "&cVocê demorou muito para fazer login/registro."
