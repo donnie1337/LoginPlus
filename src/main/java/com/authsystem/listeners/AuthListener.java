@@ -42,9 +42,6 @@ public class AuthListener implements Listener {
     public void onPreLogin(AsyncPlayerPreLoginEvent event) {
         String ip = event.getAddress().getHostAddress();
 
-        // Protecao global contra duas conexoes com o mesmo nickname.
-        // Funciona tanto para contas premium quanto cracked e acontece antes
-        // do PlayerJoinEvent, evitando que o servidor substitua a sessao antiga.
         String username = event.getName();
         Player online = findOnlinePlayerIgnoreCase(username);
         if (online != null && online.isOnline()) {
@@ -88,9 +85,6 @@ public class AuthListener implements Listener {
 
         if (verificacaoPremium != null && autenticarPremium(player, verificacaoPremium, ip)) return;
 
-        // Uma identidade premium ja conhecida nunca pode cair no fluxo de registro.
-        // Se a prova automatica nao estiver disponivel, a conexao e encerrada em vez
-        // de oferecer um cadastro para o mesmo nickname.
         if (plugin.getPlayerDataManager().isPremiumIdentity(player.getName())) {
             player.kickPlayer("Esta conta ja esta cadastrada no servidor como conta original. Entre usando o Minecraft original com este nickname.");
             return;
@@ -99,9 +93,11 @@ public class AuthListener implements Listener {
         boolean registrado = plugin.getPlayerDataManager().isRegistered(player.getName());
         if (registrado) {
             iniciarTitleAutenticacao(player, plugin.getMessagesManager().getTitleBemVindo(), plugin.getMessagesManager().getTitleLogin());
+            player.sendMessage(msg("join.retorno.login", "&aOlá! Pronto para continuar a sua jornada survival?\n\n &e* Equipe-se, siga em frente e escolha onde sua jornada vai começar;\n &e* Jogue limpo: o &c&lSentinela vigia &eestas terras contra trapaceiros...\n &e* Lembre-se: explore, construa e divirta-se em primeiro lugar!\n\n&aDicas de sobrevivência, spoilers e eventos: &discord.gg/redeglow"));
             player.sendMessage(msg("join.registrado", "&eEsta conta possui registro. Use /login <senha> para entrar."));
         } else {
             iniciarTitleAutenticacao(player, plugin.getMessagesManager().getTitleBemVindo(), plugin.getMessagesManager().getTitleRegistro());
+            player.sendMessage(msg("join.primeiro-acesso.registro", "&aOlá! Pronto para começar a sua jornada survival?\n\n &e* Equipe-se, siga em frente e escolha onde sua jornada vai começar;\n &e* Jogue limpo: o &c&lSentinela vigia &eestas terras contra trapaceiros...\n &e* Lembre-se: explore, construa e divirta-se em primeiro lugar!\n\n&aDicas de sobrevivência, spoilers e eventos: &discord.gg/redeglow"));
             player.sendMessage(msg("join.nao-registrado", "&eBem-vindo! Use /registro <senha> <confirmar-senha> para criar sua conta."));
         }
 
@@ -128,10 +124,19 @@ public class AuthListener implements Listener {
             return false;
         }
 
+        boolean primeiroAcesso = !plugin.getPlayerDataManager().isPremiumIdentity(player.getName());
+        plugin.getPlayerDataManager().markPremiumIdentity(player.getName(), premiumUuid, ip);
         plugin.getSessionManager().markPremium(player.getUniqueId());
         plugin.getSessionManager().setAuthenticated(player, true);
         enviarTitleAutenticacao(player, plugin.getMessagesManager().getTitleBemVindo(), plugin.getMessagesManager().getTitlePremium());
-        player.sendMessage(msg("premium.sucesso", "&aConta original verificada! Login automático realizado."));
+
+        if (primeiroAcesso) {
+            player.sendMessage(msg("join.primeiro-acesso.premium", "&aOlá! Pronto para começar a sua jornada survival?"));
+            player.sendMessage(msg("premium.sucesso-primeiro-acesso", "&aSua conta original já foi verificada automaticamente. Não é preciso se registrar."));
+        } else {
+            player.sendMessage(msg("join.retorno.premium", "&aOlá! Pronto para continuar a sua jornada survival?"));
+            player.sendMessage(msg("premium.sucesso-retorno", "&aSua conta original já foi verificada automaticamente. Não é preciso usar /login."));
+        }
         return true;
     }
 
