@@ -5,7 +5,8 @@
 
 join:
   primeiro-acesso:
-    registro: |
+    registro: |+
+      
       &aOlá! Pronto para começar a sua jornada survival?
 
        &e* Equipe-se, siga em frente e escolha onde sua jornada vai começar;
@@ -13,7 +14,9 @@ join:
        &e* Lembre-se: explore, construa e divirta-se em primeiro lugar!
 
       &aDicas de sobrevivência, spoilers e eventos: &discord.gg/redeglow
-    premium: |
+      
+    premium: |+
+      
       &aOlá! Pronto para começar a sua jornada survival?
 
        &e* Equipe-se, siga em frente e escolha onde sua jornada vai começar;
@@ -23,7 +26,8 @@ join:
       &aDicas de sobrevivência, spoilers e eventos: &discord.gg/redeglow
 
   retorno:
-    login: |
+    login: |+
+      
       &aOlá! Pronto para continuar a sua jornada survival?
 
        &e* Equipe-se, siga em frente e escolha onde sua jornada vai começar;
@@ -31,7 +35,9 @@ join:
        &e* Lembre-se: explore, construa e divirta-se em primeiro lugar!
 
       &aDicas de sobrevivência, spoilers e eventos: &discord.gg/redeglow
-    premium: |
+      
+    premium: |+
+      
       &aOlá! Pronto para continuar a sua jornada survival?
 
        &e* Equipe-se, siga em frente e escolha onde sua jornada vai começar;
@@ -39,7 +45,7 @@ join:
        &e* Lembre-se: explore, construa e divirta-se em primeiro lugar!
 
       &aDicas de sobrevivência, spoilers e eventos: &discord.gg/redeglow
-
+      
   registrado: "\n  \n&bUse: /login <senha>\n  \n\n  \n"
   nao-registrado: "\n  \n&bUse: /registro <senha> <senha>\n  \n\n  \n"
   timeout: "&cVocê demorou muito para fazer login/registro."
