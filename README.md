@@ -32,11 +32,11 @@ O LoginPlus também tenta confirmar se o jogador possui uma sessão Premium vál
 - Nomes comuns podem ser usados por jogadores cracked mesmo quando pertencem a uma conta Premium; eles seguem `/login` ou `/registro`.
 - Falhas de DNS, rota, firewall, timeout ou API não autenticam ninguém. Para nomes comuns, o jogador segue pelo fluxo local de `/login` ou `/registro`.
 - A existência de um perfil Premium não autentica o jogador. Só uma sessão confirmada pelo Session Server ativa o auto-login.
-- O dono de uma conta Premium que também usa o fluxo local pode definir `/premiumfallback` depois de um auto-login válido. Para identidades de cargo alto, apenas essa senha explicitamente definida pode servir de contingência.
+- O dono de uma conta Premium que também usa o fluxo local pode definir `/seguranca <senha> <confirmação>` depois de um auto-login válido. Para identidades de cargo alto, apenas essa senha explicitamente definida pode servir de contingência.
 - Uma identidade protegida por integração de cargo não pode ser registrada por um jogador novo; contas locais protegidas existentes ainda exigem `/login`.
 - Como o servidor está em `online-mode=false`, duas pessoas que usem o mesmo nickname compartilham a mesma identidade offline e os dados do jogador. Proteja com a integração `protectIdentity` todos os nomes que dão acesso a cargos ou outros privilégios.
 - O auto-login Premium continua ativo para todas as contas, inclusive cargos altos.
-- `/premiumfallback <senha> <confirmar-senha>` permite ao dono definir uma senha local de contingência depois de entrar por uma sessão Premium verificada. A senha local antiga nunca é habilitada automaticamente para esse uso.
+- `/seguranca <senha> <confirmar-senha>` permite ao dono definir uma senha local de contingência depois de entrar por uma sessão Premium verificada. A senha local antiga nunca é habilitada automaticamente para esse uso.
 
 ## Proteção antes do login
 
@@ -78,7 +78,7 @@ O salvamento é feito de forma assíncrona sempre que possível, com proteção 
 ## Configuração de rede e logs
 
 - O servidor precisa resolver DNS e abrir conexões HTTPS de saída (TCP 443) para `sessionserver.mojang.com` e `api.mojang.com` para verificar sessões e perfis Premium. Indisponibilidade não bloqueia nomes comuns do fluxo cracked, mas também nunca concede auto-login.
-- O Paper registra comandos de jogadores em `spigot.yml` por padrão. Como `/login`, `/registro` e `/premiumfallback` carregam senhas nos argumentos, defina `commands.log: false` para não gravar esses segredos no console/`latest.log`. Isso desativa o log de todos os comandos de jogadores.
+- O Paper registra comandos de jogadores em `spigot.yml` por padrão. Como `/login`, `/registro` e `/seguranca` carregam senhas nos argumentos, defina `commands.log: false` para não gravar esses segredos no console/`latest.log`. Isso desativa o log de todos os comandos de jogadores.
 
 ## Integração com os outros plugins
 
@@ -94,7 +94,7 @@ Por exemplo, o CargoPlus usa esse estado para não entregar permissões de cargo
 | `/registro <senha> <confirmar-senha>` | Cria uma conta local. |
 | `/register <senha> <confirmar-senha>` | Alias de `/registro`. |
 | `/cadastrar <senha> <confirmar-senha>` | Alias de `/registro`. |
-| `/premiumfallback <senha> <confirmar-senha>` | Define/atualiza uma senha de contingência depois do auto-login Premium confirmado. |
+| `/seguranca <senha> <confirmar-senha>` | Define/atualiza uma senha de contingência depois do auto-login Premium confirmado. |
 
 ## Plataforma
 

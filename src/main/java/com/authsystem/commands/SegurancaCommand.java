@@ -14,11 +14,11 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /** Permite ao dono premium definir uma senha local de contingencia apos auto-login verificado. */
-public final class PremiumFallbackCommand implements CommandExecutor {
+public final class SegurancaCommand implements CommandExecutor {
     private final AuthSystem plugin;
     private final Set<UUID> processing = ConcurrentHashMap.newKeySet();
 
-    public PremiumFallbackCommand(AuthSystem plugin) { this.plugin = plugin; }
+    public SegurancaCommand(AuthSystem plugin) { this.plugin = plugin; }
 
     private String msg(String path, String fallback, String... replacements) {
         return plugin.getMessagesManager().getChat(path, fallback, replacements);
@@ -35,7 +35,7 @@ public final class PremiumFallbackCommand implements CommandExecutor {
             return true;
         }
         if (args.length != 2) {
-            player.sendMessage(msg("premium-fallback.uso", "&eUso: /premiumfallback <senha> <confirmar-senha>"));
+            player.sendMessage(msg("premium-fallback.uso", "&eUso: /seguranca <senha> <confirmar-senha>"));
             return true;
         }
 

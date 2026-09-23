@@ -1,5 +1,5 @@
 name: LoginPlus
-version: '1.1.4'
+version: '1.1.5'
 main: com.authsystem.AuthSystem
 api-version: '26.2'
 author: Matheus Rodrigues - Donnie
@@ -18,10 +18,10 @@ commands:
     usage: /registro <senha> <confirmar-senha>
     aliases: [register, cadastrar]
     permission: loginplus.registro
-  premiumfallback:
+  seguranca:
     description: Define uma senha local para contingencia do auto-login premium
-    usage: /premiumfallback <senha> <confirmar-senha>
-    permission: loginplus.premiumfallback
+    usage: /seguranca <senha> <confirmar-senha>
+    permission: loginplus.seguranca
 
 permissions:
   loginplus.login:
@@ -30,6 +30,6 @@ permissions:
   loginplus.registro:
     description: Permite criar uma nova conta.
     default: true
-  loginplus.premiumfallback:
+  loginplus.seguranca:
     description: Permite configurar a senha de contingencia apos uma sessao premium verificada.
     default: true

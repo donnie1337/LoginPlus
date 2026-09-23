@@ -1,8 +1,8 @@
 package com.authsystem;
 
 import com.authsystem.commands.LoginCommand;
-import com.authsystem.commands.PremiumFallbackCommand;
 import com.authsystem.commands.RegisterCommand;
+import com.authsystem.commands.SegurancaCommand;
 import com.authsystem.listeners.AntiBypassListener;
 import com.authsystem.listeners.AuthListener;
 import com.authsystem.listeners.PremiumVerificationListener;
@@ -70,7 +70,7 @@ public class AuthSystem extends JavaPlugin {
         getCommand("login").setExecutor(new LoginCommand(this));
         registerCommand = new RegisterCommand(this);
         getCommand("registro").setExecutor(registerCommand);
-        getCommand("premiumfallback").setExecutor(new PremiumFallbackCommand(this));
+        getCommand("seguranca").setExecutor(new SegurancaCommand(this));
         getServer().getPluginManager().registerEvents(new AuthListener(this), this);
         getServer().getPluginManager().registerEvents(new AntiBypassListener(this), this);
         premiumVerificationListener = new PremiumVerificationListener(this, premiumLoginVerifier, premiumAuthenticator,
