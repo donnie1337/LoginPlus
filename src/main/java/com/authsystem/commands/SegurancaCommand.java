@@ -85,7 +85,7 @@ public final class SegurancaCommand implements CommandExecutor {
                             player.sendMessage(msg("premium-fallback.erro", "&cNao foi possivel salvar a senha de contingencia."));
                             return;
                         }
-                        player.sendMessage(msg("premium-fallback.sucesso", "&aSenha de contingencia salva. Se a verificacao da Mojang ficar indisponivel, voce podera usar /login."));
+                        player.sendMessage(msg("premium-fallback.sucesso", "&aSenha de contingencia salva. Ela nao substitui a verificacao da Mojang; conexoes sem sessao Premium confirmada continuam bloqueadas."));
                     } finally {
                         processing.remove(playerId);
                     }

@@ -40,10 +40,9 @@ seguranca:
   max-handshakes-premium-por-ip: 3
 
   # Ação aplicada somente quando a Mojang confirmou que o nickname
-  # não pertence a uma conta Premium. "cracked" continua sendo o fluxo
-  # padrão para jogadores sem conta original.
-  # Timeout, DNS, rota, firewall, limite e erros HTTP não autenticam via
-  # Premium. Nomes comuns continuam no fluxo local /login ou /registro.
+  # não pertence a uma conta Premium. "cracked" permite o fluxo local.
+  # Perfil Premium sem sessão valida, DNS, rota, firewall, timeout, limite
+  # e erros HTTP bloqueiam a entrada com mensagem na tela de desconexao.
   acao-falha-verificacao-premium: cracked
 
 # ------------------------------------------------------------

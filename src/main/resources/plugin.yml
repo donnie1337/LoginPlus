@@ -1,5 +1,5 @@
 name: LoginPlus
-version: '1.1.5'
+version: '1.1.6'
 main: com.authsystem.AuthSystem
 api-version: '26.2'
 author: Matheus Rodrigues - Donnie

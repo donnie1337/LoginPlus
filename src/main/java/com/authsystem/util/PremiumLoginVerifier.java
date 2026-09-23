@@ -194,7 +194,7 @@ public final class PremiumLoginVerifier {
         connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
         connection.setReadTimeout(READ_TIMEOUT_MS);
         connection.setInstanceFollowRedirects(false);
-        connection.setRequestProperty("User-Agent", "LoginPlus/1.1.5");
+        connection.setRequestProperty("User-Agent", "LoginPlus/1.1.6");
         connection.setRequestProperty("Accept", "application/json");
         try {
             int status = connection.getResponseCode();

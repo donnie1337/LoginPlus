@@ -41,7 +41,9 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
     private static final Logger LOGGER = Logger.getLogger("LoginPlus");
     private static final long FALLBACK_MS = 15000L;
     private static final long CONNECTION_TTL_MS = 20000L;
-    private static final String PREMIUM_ACCOUNT_MESSAGE = "Esta conta ja esta cadastrada no servidor como conta original. Entre usando o Minecraft original com este nickname.";
+    private static final String MOJANG_UNAVAILABLE_MESSAGE = "Nao foi possivel verificar sua conta com a Mojang. A conexao foi bloqueada por seguranca. Tente novamente mais tarde.";
+    private static final String PREMIUM_SESSION_REQUIRED_MESSAGE = "Existe uma conta Minecraft original com este nickname, mas a sessao nao foi confirmada. Entre pelo launcher oficial e tente novamente.";
+    private static final String PREMIUM_ACCOUNT_MESSAGE = "Esta conta ja foi confirmada como original anteriormente, mas nao pode ser verificada agora. A conexao foi bloqueada por seguranca.";
     private static final String DUPLICATE_SESSION_MESSAGE = "Esta conta ja esta conectada ao servidor.";
     private final PremiumLoginVerifier verifier;
     private final PremiumAuthenticator authenticator;
@@ -260,34 +262,33 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
         boolean knownPremium = plugin.getPlayerDataManager().isPremiumIdentity(username);
         boolean protectedIdentity = plugin.isProtectedIdentity(username);
         boolean registered = plugin.getPlayerDataManager().isRegistered(username);
-        boolean premiumFallback = plugin.getPlayerDataManager().hasPremiumFallbackPassword(username);
+        // Sem resposta confiavel da Mojang, nao e possivel distinguir uma conta
+        // original de uma conexao cracked com o mesmo nome. Falhar fechado
+        // antes de entrar no servidor; a mensagem aparece na tela de desconexao.
+        if (kind == FailureKind.UNAVAILABLE) {
+            LOGGER.warning("Conexao bloqueada: nao foi possivel verificar a Mojang para " + username + ": " + reason);
+            disconnect(user, MOJANG_UNAVAILABLE_MESSAGE);
+            return;
+        }
+        if (kind == FailureKind.PREMIUM_REQUIRES_AUTHENTICATION) {
+            LOGGER.warning("Conexao bloqueada: perfil Premium encontrado sem sessao valida para " + username + ".");
+            disconnect(user, PREMIUM_SESSION_REQUIRED_MESSAGE);
+            return;
+        }
+        if (knownPremium) {
+            LOGGER.warning("Conexao bloqueada: identidade Premium previamente confirmada nao foi confirmada nesta conexao para " + username + ".");
+            disconnect(user, PREMIUM_ACCOUNT_MESSAGE);
+            return;
+        }
 
         if (protectedIdentity) {
-            // Cargo alto continua reservado. Se o nome esta marcado como premium
-            // (ou a API confirmou que existe), so a sessao premium ou fallback
-            // escolhido pelo dono pode autenticar essa identidade.
-            if ((knownPremium || kind == FailureKind.PREMIUM_REQUIRES_AUTHENTICATION) && !premiumFallback) {
-                LOGGER.warning("Acesso recusado a identidade protegida premium " + username + ": " + reason);
-                disconnect(user, PREMIUM_ACCOUNT_MESSAGE);
-                return;
-            }
-            if (knownPremium && premiumFallback) {
-                LOGGER.warning("Verificacao Mojang falhou para " + username + "; permitindo login com fallback premium cadastrado.");
-                if (user != null) resume(user, version, username, playerUuid);
-                return;
-            }
             if (registered && user != null) resume(user, version, username, playerUuid);
             else disconnect(user, "Esta identidade esta protegida e requer autenticacao valida.");
             return;
         }
 
-        // Nomes comuns podem ser usados tanto por jogadores premium quanto
-        // cracked. A API nao concede identidade: apenas hasJoined valido faz
-        // o autologin; nos demais casos segue o login/registro local.
-        if (kind == FailureKind.UNAVAILABLE || kind == FailureKind.PREMIUM_REQUIRES_AUTHENTICATION) {
-            if (user != null) resume(user, version, username, playerUuid);
-            return;
-        }
+        // Somente uma resposta positiva de que o perfil nao existe pode seguir
+        // pelo fluxo cracked. Perfil Premium sem prova foi bloqueado acima.
         if ("kick".equals(plugin.getPremiumFailureAction())) {
             LOGGER.warning("Verificacao premium recusada para " + username + ": " + reason + " (acao=kick)");
             disconnect(user, "Nao foi possivel verificar sua conta premium. Tente novamente.");

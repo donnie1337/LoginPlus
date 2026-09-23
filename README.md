@@ -29,14 +29,15 @@ O LoginPlus também tenta confirmar se o jogador possui uma sessão Premium vál
 - Login automático quando a sessão Premium é confirmada.
 - Timeout e limite de consultas configuráveis.
 - Limpeza das verificações que ficaram pendentes.
-- Nomes comuns podem ser usados por jogadores cracked mesmo quando pertencem a uma conta Premium; eles seguem `/login` ou `/registro`.
-- Falhas de DNS, rota, firewall, timeout ou API não autenticam ninguém. Para nomes comuns, o jogador segue pelo fluxo local de `/login` ou `/registro`.
+- Jogadores cracked seguem por `/login` ou `/registro` somente quando a Mojang confirma que o nome não pertence a um perfil Premium.
+- Falhas de DNS, rota, firewall, timeout, limite ou API bloqueiam a conexão antes de entrar no servidor e mostram uma mensagem na tela de desconexão.
 - A existência de um perfil Premium não autentica o jogador. Só uma sessão confirmada pelo Session Server ativa o auto-login.
-- O dono de uma conta Premium que também usa o fluxo local pode definir `/seguranca <senha> <confirmação>` depois de um auto-login válido. Para identidades de cargo alto, apenas essa senha explicitamente definida pode servir de contingência.
+- Se o perfil for Premium, mas a sessão não for comprovada, a conexão é bloqueada e o jogador deve entrar pelo launcher oficial.
+- `/seguranca <senha> <confirmação>` continua permitindo ao dono definir uma senha local de contingência depois de um auto-login válido. Essa senha não substitui a verificação Mojang nem libera conexões quando ela falha.
 - Uma identidade protegida por integração de cargo não pode ser registrada por um jogador novo; contas locais protegidas existentes ainda exigem `/login`.
 - Como o servidor está em `online-mode=false`, duas pessoas que usem o mesmo nickname compartilham a mesma identidade offline e os dados do jogador. Proteja com a integração `protectIdentity` todos os nomes que dão acesso a cargos ou outros privilégios.
 - O auto-login Premium continua ativo para todas as contas, inclusive cargos altos.
-- `/seguranca <senha> <confirmar-senha>` permite ao dono definir uma senha local de contingência depois de entrar por uma sessão Premium verificada. A senha local antiga nunca é habilitada automaticamente para esse uso.
+- A senha local antiga nunca é habilitada automaticamente como contingência; ela deve ser definida por `/seguranca` depois de uma sessão Premium verificada.
 
 ## Proteção antes do login
 
@@ -77,7 +78,7 @@ O salvamento é feito de forma assíncrona sempre que possível, com proteção 
 
 ## Configuração de rede e logs
 
-- O servidor precisa resolver DNS e abrir conexões HTTPS de saída (TCP 443) para `sessionserver.mojang.com` e `api.mojang.com` para verificar sessões e perfis Premium. Indisponibilidade não bloqueia nomes comuns do fluxo cracked, mas também nunca concede auto-login.
+- O servidor precisa resolver DNS e abrir conexões HTTPS de saída (TCP 443) para `sessionserver.mojang.com` e `api.mojang.com` para verificar sessões e perfis Premium. Se essas consultas falharem, novas conexões são bloqueadas por segurança.
 - O Paper registra comandos de jogadores em `spigot.yml` por padrão. Como `/login`, `/registro` e `/seguranca` carregam senhas nos argumentos, defina `commands.log: false` para não gravar esses segredos no console/`latest.log`. Isso desativa o log de todos os comandos de jogadores.
 
 ## Integração com os outros plugins
