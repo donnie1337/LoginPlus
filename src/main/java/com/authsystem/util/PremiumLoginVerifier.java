@@ -10,29 +10,48 @@ import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
-import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Semaphore;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.crypto.Cipher;
 
-/** Realiza o desafio criptografico usado para verificar contas premium. */
+/** Verifica a prova criptografica premium e distingue conta cracked de falha de rede. */
 public final class PremiumLoginVerifier {
-    private static final Logger LOGGER = Logger.getLogger("AuthSystem");
+    private static final Logger LOGGER = Logger.getLogger("LoginPlus");
     private static final int RSA_KEY_SIZE = 2048;
+    private static final int MAX_REQUEST_WORKERS = 8;
     private static final int MAX_MOJANG_RESPONSE_BYTES = 16 * 1024;
-    private static final long MOJANG_TIMEOUT_SECONDS = 8L;
+    private static final int CONNECT_TIMEOUT_MS = 3_000;
+    private static final int READ_TIMEOUT_MS = 3_000;
+    private static final long MOJANG_TIMEOUT_SECONDS = 12L;
     private static final long PENDING_TTL_MS = 20_000L;
     private static final Pattern MOJANG_UUID_PATTERN = Pattern.compile("\\\"id\\\"\\s*:\\s*\\\"([0-9a-fA-F-]{32,36})\\\"");
     private final KeyPair keyPair;
     private final SecureRandom random = new SecureRandom();
     private final ConcurrentHashMap<String, Pending> pending = new ConcurrentHashMap<>();
-    private final Semaphore verificacoesAtivas;
+    private final ExecutorService requestExecutor;
+    private final java.util.concurrent.Semaphore verificationsActive;
+
+    public enum Status {
+        VERIFIED,
+        NOT_PREMIUM,
+        PREMIUM_REQUIRES_AUTHENTICATION,
+        UNAVAILABLE
+    }
+
+    public record Result(Status status, UUID uuid, String detail) {
+        private static Result verified(UUID uuid) { return new Result(Status.VERIFIED, uuid, "verified"); }
+        private static Result of(Status status, String detail) { return new Result(status, null, detail); }
+    }
 
     public PremiumLoginVerifier(int maxConcurrentChecks) {
         try {
@@ -42,7 +61,18 @@ public final class PremiumLoginVerifier {
         } catch (GeneralSecurityException e) {
             throw new IllegalStateException("RSA indisponivel", e);
         }
-        verificacoesAtivas = maxConcurrentChecks > 0 ? new Semaphore(maxConcurrentChecks) : null;
+
+        int workers = Math.max(1, Math.min(maxConcurrentChecks, MAX_REQUEST_WORKERS));
+        AtomicInteger threadNumber = new AtomicInteger();
+        ThreadFactory factory = task -> {
+            Thread thread = new Thread(task, "LoginPlus-Mojang-" + threadNumber.incrementAndGet());
+            thread.setDaemon(true);
+            return thread;
+        };
+        // Isola chamadas bloqueantes/DNS do ForkJoinPool compartilhado por outros plugins.
+        requestExecutor = new ThreadPoolExecutor(workers, workers, 0L, TimeUnit.MILLISECONDS,
+                new ArrayBlockingQueue<>(workers), factory, new ThreadPoolExecutor.AbortPolicy());
+        verificationsActive = new java.util.concurrent.Semaphore(workers);
     }
 
     public java.security.PublicKey getPublicKey() { return keyPair.getPublic(); }
@@ -56,13 +86,12 @@ public final class PremiumLoginVerifier {
     }
 
     public boolean hasPending(String connectionKey) { return pending.containsKey(connectionKey); }
-
     public void remove(String connectionKey) { pending.remove(connectionKey); }
 
-    /** Remove desafios abandonados para impedir crescimento indefinido do mapa em conexoes maliciosas. */
+    /** Remove desafios abandonados para impedir crescimento indefinido do mapa. */
     public void cleanupExpired() {
-        long agora = System.currentTimeMillis();
-        pending.entrySet().removeIf(entry -> agora - entry.getValue().createdAt() >= PENDING_TTL_MS);
+        long now = System.currentTimeMillis();
+        pending.entrySet().removeIf(entry -> now - entry.getValue().createdAt() >= PENDING_TTL_MS);
     }
 
     public byte[] decrypt(byte[] encrypted) throws GeneralSecurityException {
@@ -72,56 +101,86 @@ public final class PremiumLoginVerifier {
     }
 
     public boolean validateToken(String connectionKey, byte[] encryptedToken) {
-        Pending p = pending.get(connectionKey);
-        if (p == null || encryptedToken == null) return false;
+        Pending value = pending.get(connectionKey);
+        if (value == null || encryptedToken == null) return false;
         try {
-            byte[] token = decrypt(encryptedToken);
-            return MessageDigest.isEqual(token, p.verifyToken());
+            return MessageDigest.isEqual(decrypt(encryptedToken), value.verifyToken());
         } catch (GeneralSecurityException e) {
-            LOGGER.fine("Token de verificacao premium invalido: " + e.getMessage());
+            LOGGER.fine("Token premium invalido: " + e.getMessage());
             return false;
         }
     }
 
-    public CompletableFuture<Optional<UUID>> verify(String connectionKey, byte[] sharedSecret) {
-        Pending p = pending.remove(connectionKey);
-        if (p == null || sharedSecret == null || sharedSecret.length != 16) {
-            return CompletableFuture.completedFuture(Optional.empty());
+    /**
+     * Resultado positivo exige hasJoined (prova de posse da sessao).
+     * Quando hasJoined responde 204, consulta o perfil: um nickname premium
+     * nao pode cair no fluxo cracked apenas por nao ter apresentado uma sessao.
+     * Falhas de rede nunca sao classificadas como conta nao premium.
+     */
+    public CompletableFuture<Result> verify(String connectionKey, byte[] sharedSecret) {
+        Pending value = pending.remove(connectionKey);
+        if (value == null || sharedSecret == null || sharedSecret.length != 16) {
+            return CompletableFuture.completedFuture(Result.of(Status.UNAVAILABLE, "handshake_incompleto"));
+        }
+        if (!verificationsActive.tryAcquire()) {
+            return CompletableFuture.completedFuture(Result.of(Status.UNAVAILABLE, "limite_de_consultas"));
         }
 
-        if (verificacoesAtivas != null && !verificacoesAtivas.tryAcquire()) {
-            LOGGER.warning("Limite global de verificacoes premium simultaneas atingido para " + p.username() + ".");
-            return CompletableFuture.completedFuture(Optional.empty());
+        CompletableFuture<Result> request;
+        try {
+            request = CompletableFuture.supplyAsync(() -> verifyNow(value.username(), sharedSecret), requestExecutor);
+        } catch (RuntimeException rejected) {
+            verificationsActive.release();
+            return CompletableFuture.completedFuture(Result.of(Status.UNAVAILABLE, "fila_de_consultas_cheia"));
         }
+        request.whenComplete((result, error) -> verificationsActive.release());
 
-        CompletableFuture<Optional<UUID>> request = CompletableFuture.supplyAsync(() -> {
-            try {
-                String serverHash = serverHash(sharedSecret);
-                LOGGER.info("Verificando conta premium " + p.username() + " na Mojang (serverId=" + serverHash + ")");
-                return hasJoined(p.username(), serverHash);
-            } catch (Exception e) {
-                LOGGER.warning("Falha na verificacao premium de " + p.username() + ": " + e.getMessage());
-                return Optional.empty();
-            }
-        });
-
-        if (verificacoesAtivas != null) request.whenComplete((result, error) -> verificacoesAtivas.release());
-
-        CompletableFuture<Optional<UUID>> timeout = new CompletableFuture<>();
+        CompletableFuture<Result> timeout = new CompletableFuture<>();
         CompletableFuture.delayedExecutor(MOJANG_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-                .execute(() -> timeout.complete(Optional.empty()));
-
-        return request.applyToEither(timeout, value -> value)
-                .exceptionally(error -> {
-                    LOGGER.warning("Timeout/falha na verificacao Mojang de " + p.username() + ".");
-                    return Optional.empty();
-                });
+                .execute(() -> timeout.complete(Result.of(Status.UNAVAILABLE, "timeout")));
+        return request.applyToEither(timeout, result -> result)
+                .exceptionally(error -> Result.of(Status.UNAVAILABLE, "erro_de_rede"));
     }
 
-    /**
-     * Calcula o serverId no formato assinado hexadecimal esperado pelo protocolo
-     * do Minecraft. BigInteger(byte[]) preserva a representacao signed two's-complement.
-     */
+    private Result verifyNow(String username, byte[] sharedSecret) {
+        try {
+            String serverHash = serverHash(sharedSecret);
+            HttpResult session = get("https://sessionserver.mojang.com/session/minecraft/hasJoined?username="
+                    + URLEncoder.encode(username, StandardCharsets.UTF_8) + "&serverId="
+                    + URLEncoder.encode(serverHash, StandardCharsets.UTF_8));
+
+            if (session.status() == HttpURLConnection.HTTP_OK) {
+                UUID uuid = parseUuid(session.body());
+                if (uuid == null) return Result.of(Status.UNAVAILABLE, "resposta_hasJoined_invalida");
+                LOGGER.info("Sessao premium verificada para " + username + ".");
+                return Result.verified(uuid);
+            }
+
+            // 204 e a resposta normal para uma sessao sem prova premium.
+            // Outros status (429/5xx/4xx) sao indisponibilidade, nao prova de conta cracked.
+            if (session.status() != HttpURLConnection.HTTP_NO_CONTENT) {
+                return Result.of(Status.UNAVAILABLE, "hasJoined_http_" + session.status());
+            }
+
+            HttpResult profile = get("https://api.mojang.com/users/profiles/minecraft/"
+                    + URLEncoder.encode(username, StandardCharsets.UTF_8));
+            if (profile.status() == HttpURLConnection.HTTP_OK) {
+                UUID uuid = parseUuid(profile.body());
+                if (uuid == null) return Result.of(Status.UNAVAILABLE, "resposta_perfil_invalida");
+                return Result.of(Status.PREMIUM_REQUIRES_AUTHENTICATION, "conta_premium_sem_sessao_valida");
+            }
+            if (profile.status() == HttpURLConnection.HTTP_NO_CONTENT) {
+                return Result.of(Status.NOT_PREMIUM, "perfil_premium_nao_encontrado");
+            }
+            return Result.of(Status.UNAVAILABLE, "perfil_http_" + profile.status());
+        } catch (Exception e) {
+            LOGGER.warning("Consulta premium da Mojang indisponivel para " + username + " ("
+                    + e.getClass().getSimpleName() + ": " + String.valueOf(e.getMessage()) + ").");
+            return Result.of(Status.UNAVAILABLE, "falha_de_rede_" + e.getClass().getSimpleName());
+        }
+    }
+
+    /** Calcula o serverId signed hexadecimal exigido pelo protocolo Minecraft. */
     private String serverHash(byte[] sharedSecret) throws Exception {
         MessageDigest digest = MessageDigest.getInstance("SHA-1");
         digest.update(sharedSecret);
@@ -129,54 +188,45 @@ public final class PremiumLoginVerifier {
         return new java.math.BigInteger(digest.digest()).toString(16);
     }
 
-    private Optional<UUID> hasJoined(String username, String serverHash) throws Exception {
-        String encodedName = URLEncoder.encode(username, StandardCharsets.UTF_8);
-        String encodedHash = URLEncoder.encode(serverHash, StandardCharsets.UTF_8);
-        URI uri = URI.create("https://sessionserver.mojang.com/session/minecraft/hasJoined?username="
-                + encodedName + "&serverId=" + encodedHash);
-        HttpURLConnection connection = (HttpURLConnection) uri.toURL().openConnection();
+    private HttpResult get(String address) throws Exception {
+        HttpURLConnection connection = (HttpURLConnection) URI.create(address).toURL().openConnection();
         connection.setRequestMethod("GET");
-        connection.setConnectTimeout(4000);
-        connection.setReadTimeout(4000);
-        connection.setRequestProperty("User-Agent", "AuthSystem/1.1.3");
+        connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
+        connection.setReadTimeout(READ_TIMEOUT_MS);
+        connection.setInstanceFollowRedirects(false);
+        connection.setRequestProperty("User-Agent", "LoginPlus/1.1.4");
         connection.setRequestProperty("Accept", "application/json");
         try {
             int status = connection.getResponseCode();
-            if (status != 200) {
-                LOGGER.warning("Mojang hasJoined retornou HTTP " + status + " para " + username + ".");
-                return Optional.empty();
-            }
+            if (status != HttpURLConnection.HTTP_OK) return new HttpResult(status, new byte[0]);
             int contentLength = connection.getContentLength();
-            if (contentLength > MAX_MOJANG_RESPONSE_BYTES) {
-                LOGGER.warning("Resposta da Mojang excedeu o limite permitido para " + username + ".");
-                return Optional.empty();
-            }
+            if (contentLength > MAX_MOJANG_RESPONSE_BYTES) return new HttpResult(status, new byte[0]);
             try (InputStream input = connection.getInputStream()) {
-                byte[] bodyBytes = input.readNBytes(MAX_MOJANG_RESPONSE_BYTES + 1);
-                if (bodyBytes.length > MAX_MOJANG_RESPONSE_BYTES) {
-                    LOGGER.warning("Resposta da Mojang excedeu o limite permitido para " + username + ".");
-                    return Optional.empty();
-                }
-                String body = new String(bodyBytes, StandardCharsets.UTF_8);
-                Matcher matcher = MOJANG_UUID_PATTERN.matcher(body);
-                if (!matcher.find()) {
-                    LOGGER.warning("Mojang respondeu sem UUID valido para " + username + ".");
-                    return Optional.empty();
-                }
-                String raw = matcher.group(1).replace("-", "");
-                if (!raw.matches("[0-9a-fA-F]{32}")) {
-                    LOGGER.warning("UUID invalido retornado pela Mojang para " + username + ".");
-                    return Optional.empty();
-                }
-                String uuid = raw.substring(0, 8) + "-" + raw.substring(8, 12) + "-"
-                        + raw.substring(12, 16) + "-" + raw.substring(16, 20) + "-" + raw.substring(20);
-                LOGGER.info("Mojang confirmou a identidade premium de " + username + ".");
-                return Optional.of(UUID.fromString(uuid));
+                byte[] body = input.readNBytes(MAX_MOJANG_RESPONSE_BYTES + 1);
+                if (body.length > MAX_MOJANG_RESPONSE_BYTES) return new HttpResult(status, new byte[0]);
+                return new HttpResult(status, body);
             }
         } finally {
             connection.disconnect();
         }
     }
 
+    private UUID parseUuid(byte[] body) {
+        Matcher matcher = MOJANG_UUID_PATTERN.matcher(new String(body, StandardCharsets.UTF_8));
+        if (!matcher.find()) return null;
+        String raw = matcher.group(1).replace("-", "");
+        if (!raw.matches("[0-9a-fA-F]{32}")) return null;
+        String normalized = raw.substring(0, 8) + "-" + raw.substring(8, 12) + "-"
+                + raw.substring(12, 16) + "-" + raw.substring(16, 20) + "-" + raw.substring(20);
+        try { return UUID.fromString(normalized); }
+        catch (IllegalArgumentException ignored) { return null; }
+    }
+
+    public void shutdown() {
+        requestExecutor.shutdownNow();
+        pending.clear();
+    }
+
+    private record HttpResult(int status, byte[] body) {}
     private record Pending(String username, byte[] verifyToken, long createdAt) {}
 }

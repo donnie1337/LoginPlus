@@ -173,6 +173,39 @@ public class PlayerDataManager {
         scheduleAsyncSave();
     }
 
+    /**
+     * Um hash local preexistente nao e automaticamente um fallback seguro para
+     * uma identidade premium: ele pode ter sido criado por quem tomou o nick
+     * antes da primeira verificacao. O fallback precisa ser definido depois de
+     * uma sessao premium validada.
+     */
+    public synchronized boolean hasPremiumFallbackPassword(String username) {
+        if (!isPremiumIdentity(username)) return false;
+        String base = key(username);
+        return data.getBoolean(base + ".fallback-premium-habilitado", false)
+                && getPasswordData(username) != null;
+    }
+
+    /** Salva/atualiza uma senha de contingencia apenas para uma identidade premium confirmada. */
+    public synchronized boolean setPremiumFallbackPassword(String username, String salt, String hash, int iterations, String ip) {
+        if (!isPremiumIdentity(username) || salt == null || hash == null
+                || iterations < PasswordUtils.MIN_ITERATIONS || iterations > PasswordUtils.MAX_ITERATIONS
+                || ip == null || ip.isBlank()) {
+            return false;
+        }
+        String base = key(username);
+        data.set(base + ".senha", hash);
+        data.set(base + ".salt", salt);
+        data.set(base + ".iteracoes", iterations);
+        // Substitui IPs legados que podem ter sido gravados por um impostor
+        // antes da identidade ser confirmada como Premium.
+        data.set(base + ".ip", ip);
+        data.set(base + ".ips", List.of(ip));
+        data.set(base + ".fallback-premium-habilitado", true);
+        scheduleAsyncSave();
+        return true;
+    }
+
     /** Retorna a data de criação da conta em formato próprio para exibição. */
     public synchronized String getRegistrationDate(String username) {
         if (username == null || username.isBlank()) return "Desconhecida";
@@ -257,7 +290,7 @@ public class PlayerDataManager {
     }
 
     public synchronized boolean registerHashed(String username, String salt, String hash, int iterations, String ip, UUID uuid) {
-        if (username == null || username.isBlank() || isRegistered(username) || isPremiumIdentity(username) || isProtectedIdentity(username)
+        if (username == null || username.isBlank() || isRegistered(username) || isProtectedIdentity(username)
                 || ip == null || ip.isBlank() || uuid == null || salt == null || hash == null || iterations < 1) return false;
         String base = key(username);
         data.set(base + ".senha", hash);

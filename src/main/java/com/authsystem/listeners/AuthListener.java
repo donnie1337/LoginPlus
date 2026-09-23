@@ -2,7 +2,6 @@ package com.authsystem.listeners;
 
 import com.authsystem.AuthSystem;
 import com.authsystem.util.IpResolver;
-import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -18,6 +17,7 @@ import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerKickEvent;
+import org.bukkit.event.player.PlayerLoginEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.scheduler.BukkitTask;
@@ -42,13 +42,6 @@ public class AuthListener implements Listener {
     public void onPreLogin(AsyncPlayerPreLoginEvent event) {
         String ip = event.getAddress().getHostAddress();
 
-        String username = event.getName();
-        Player online = findOnlinePlayerIgnoreCase(username);
-        if (online != null && online.isOnline()) {
-            event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_OTHER, DUPLICATE_SESSION_MESSAGE);
-            return;
-        }
-
         if (plugin.getLoginProtection().estaBloqueado(ip)) {
             long restante = plugin.getLoginProtection().segundosRestantes(ip);
             event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_OTHER, "Muitas tentativas de login incorretas.\nTente novamente em " + restante + " segundos.");
@@ -64,12 +57,15 @@ public class AuthListener implements Listener {
         }
     }
 
-    private Player findOnlinePlayerIgnoreCase(String username) {
-        if (username == null || username.isBlank()) return null;
-        for (Player player : Bukkit.getOnlinePlayers()) {
-            if (player.getName().equalsIgnoreCase(username)) return player;
+    /** Verifica nomes duplicados na thread principal; AsyncPlayerPreLoginEvent nao pode consultar Players com seguranca. */
+    @EventHandler(priority = EventPriority.LOWEST)
+    public void onLogin(PlayerLoginEvent event) {
+        for (Player online : plugin.getServer().getOnlinePlayers()) {
+            if (online.getName().equalsIgnoreCase(event.getPlayer().getName())) {
+                event.disallow(PlayerLoginEvent.Result.KICK_OTHER, DUPLICATE_SESSION_MESSAGE);
+                return;
+            }
         }
-        return null;
     }
 
     @EventHandler
@@ -85,12 +81,18 @@ public class AuthListener implements Listener {
 
         if (verificacaoPremium != null && autenticarPremium(player, verificacaoPremium, ip)) return;
 
-        if (plugin.getPlayerDataManager().isPremiumIdentity(player.getName())) {
-            player.kickPlayer("Esta conta ja esta cadastrada no servidor como conta original. Entre usando o Minecraft original com este nickname.");
+        boolean registrado = plugin.getPlayerDataManager().isRegistered(player.getName());
+        boolean identidadePremium = plugin.getPlayerDataManager().isPremiumIdentity(player.getName());
+        boolean identidadeProtegida = plugin.isProtectedIdentity(player.getName());
+        if (identidadeProtegida && identidadePremium
+                && !plugin.getPlayerDataManager().hasPremiumFallbackPassword(player.getName())) {
+            player.kickPlayer("Esta conta pertence a uma conta original. A verificacao premium esta indisponivel e nao ha senha de contingencia configurada.");
             return;
         }
-
-        boolean registrado = plugin.getPlayerDataManager().isRegistered(player.getName());
+        if (identidadeProtegida && !registrado) {
+            player.kickPlayer("Esta identidade esta protegida e ainda nao possui uma conta local registrada.");
+            return;
+        }
         if (registrado) {
             iniciarTitleAutenticacao(player, plugin.getMessagesManager().getTitleBemVindo(), plugin.getMessagesManager().getTitleLogin());
             player.sendMessage(msg("join.retorno.login", "&aOlá! Pronto para continuar a sua jornada survival?\n\n &e* Equipe-se, siga em frente e escolha onde sua jornada vai começar;\n &e* Jogue limpo: o &c&lSentinela vigia &eestas terras contra trapaceiros...\n &e* Lembre-se: explore, construa e divirta-se em primeiro lugar!\n\n&aDicas de sobrevivência, spoilers e eventos: &discord.gg/redeglow"));

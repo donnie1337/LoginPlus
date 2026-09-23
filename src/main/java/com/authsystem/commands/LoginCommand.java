@@ -38,12 +38,23 @@ public class LoginCommand implements CommandExecutor {
             player.sendMessage(msg("login.premium", "&e⚠ &fSua conta original já foi verificada automaticamente. Não é preciso usar /login."));
             return true;
         }
+        if (plugin.isProtectedIdentity(player.getName())
+                && plugin.getPlayerDataManager().isPremiumIdentity(player.getName())
+                && !plugin.getPlayerDataManager().hasPremiumFallbackPassword(player.getName())) {
+            player.sendMessage(msg("login.premium-sem-fallback", "&cEsta conta premium nao tem senha de contingencia. Entre quando o auto-login premium estiver disponivel."));
+            return true;
+        }
         if (!plugin.getPlayerDataManager().isRegistered(player.getName())) {
             player.sendMessage(msg("login.sem-conta", "&c✖ &fVocê ainda não tem conta. Use /registro <senha> <confirmar-senha>."));
             return true;
         }
         if (args.length != 1) {
             player.sendMessage(msg("login.uso", "&e➜ &fUso: /login <senha>"));
+            return true;
+        }
+        int maxPasswordLength = plugin.getConfig().getInt("maximo-caracteres-senha", PasswordUtils.DEFAULT_MAX_PASSWORD_LENGTH);
+        if (args[0].length() > maxPasswordLength) {
+            player.sendMessage(msg("login.senha-incorreta", "&c✖ &fSenha incorreta."));
             return true;
         }
 
@@ -58,8 +69,8 @@ public class LoginCommand implements CommandExecutor {
             player.sendMessage(msg("login.ip-bloqueado", "&c✖ &fEste IP está temporariamente bloqueado por excesso de tentativas. Tente novamente mais tarde."));
             return true;
         }
-        if (plugin.getLoginProtection().estaBloqueadoConta(username)) {
-            long restante = plugin.getLoginProtection().segundosRestantesConta(username);
+        if (plugin.getLoginProtection().estaBloqueadoConta(username, ip)) {
+            long restante = plugin.getLoginProtection().segundosRestantesConta(username, ip);
             player.sendMessage(msg("login.conta-bloqueada", "&c✖ &fEsta conta está temporariamente bloqueada por excesso de tentativas. Tente novamente em {restante} segundos.", "{restante}", String.valueOf(restante)));
             return true;
         }
@@ -138,7 +149,7 @@ public class LoginCommand implements CommandExecutor {
         plugin.getSessionManager().setAuthenticated(player, true);
         plugin.getSessionManager().cancelTimeout(player);
         plugin.getLoginProtection().limparAoLogar(ip);
-        plugin.getLoginProtection().limparContaAoLogar(username);
+        plugin.getLoginProtection().limparContaAoLogar(username, ip);
         player.sendMessage(msg("login.sucesso", "&a✔ &fLogin efetuado com sucesso! Bem-vindo(a) de volta."));
     }
 
@@ -147,7 +158,7 @@ public class LoginCommand implements CommandExecutor {
         long minutosBloqueio = Math.max(1L, plugin.getConfig().getLong("bloqueio-apos-exceder-tentativas-minutos", 5));
         long bloqueioMs = minutosBloqueio * 60_000L;
         int tentativasIp = plugin.getLoginProtection().registrarErro(ip, max, bloqueioMs);
-        int tentativasConta = plugin.getLoginProtection().registrarErroConta(username, max, bloqueioMs);
+        int tentativasConta = plugin.getLoginProtection().registrarErroConta(username, ip, max, bloqueioMs);
         int tentativas = Math.max(tentativasIp, tentativasConta);
         if (tentativas > max) player.kickPlayer(msg("login.muitas-tentativas", "&c✖ &fMuitas tentativas de senha incorreta. Tente novamente mais tarde."));
         else player.sendMessage(msg("login.senha-incorreta", "&c✖ &fSenha incorreta! ({tentativas}/{max})", "{tentativas}", String.valueOf(tentativas), "{max}", String.valueOf(max)));

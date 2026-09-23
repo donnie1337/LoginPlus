@@ -80,7 +80,7 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
         if (ip == null || ip.isBlank()) {
             LOGGER.warning("Nao foi possivel identificar o IP durante o handshake premium de " + username + ".");
             event.setCancelled(true);
-            handleVerificationFailure(user, version, username, playerUuid, null, "IP indisponivel durante a verificacao premium.");
+            handleVerificationFailure(user, version, username, playerUuid, null, FailureKind.UNAVAILABLE, "IP indisponivel durante a verificacao premium.");
             return;
         }
 
@@ -88,14 +88,14 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
         if (key == null) {
             LOGGER.warning("Nao foi possivel criar a chave da conexao durante o handshake premium de " + username + ".");
             event.setCancelled(true);
-            handleVerificationFailure(user, version, username, playerUuid, null, "Chave da conexao indisponivel durante a verificacao premium.");
+            handleVerificationFailure(user, version, username, playerUuid, null, FailureKind.UNAVAILABLE, "Chave da conexao indisponivel durante a verificacao premium.");
             return;
         }
 
         event.setCancelled(true);
         if (!tryAcquirePending(ip)) {
             LOGGER.fine("Limite de handshakes premium pendentes atingido para " + username + ".");
-            handleVerificationFailure(user, version, username, playerUuid, ip, "Limite de verificacoes premium pendentes atingido.");
+            handleVerificationFailure(user, version, username, playerUuid, ip, FailureKind.UNAVAILABLE, "Limite de verificacoes premium pendentes atingido.");
             return;
         }
 
@@ -111,7 +111,7 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
             verifier.remove(key);
             releasePending(ip);
             LOGGER.warning("Reserva de conexao premium duplicada detectada para " + username + ".");
-            handleVerificationFailure(user, version, username, playerUuid, ip, "Reserva de conexao premium duplicada.");
+            handleVerificationFailure(user, version, username, playerUuid, ip, FailureKind.UNAVAILABLE, "Reserva de conexao premium duplicada.");
             return;
         }
 
@@ -122,7 +122,7 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
             if (current != null) {
                 verifier.remove(key);
                 releasePending(current.ip());
-                handleVerificationFailure(user, current.version(), current.username(), current.playerUuid(), current.ip(), "Tempo limite da verificacao premium excedido.");
+                handleVerificationFailure(user, current.version(), current.username(), current.playerUuid(), current.ip(), FailureKind.UNAVAILABLE, "Tempo limite da verificacao premium excedido.");
             }
         }, FALLBACK_MS / 50L);
         fallbackTasks.put(key, fallback);
@@ -168,9 +168,15 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
         verifier.verify(key, sharedSecret).thenAccept(result -> plugin.getServer().getScheduler().runTask(plugin, () -> {
             if (!connections.remove(key, pending)) return;
             releasePending(pending.ip());
-            UUID mojangUuid = result.orElse(null);
+            UUID mojangUuid = result.status() == PremiumLoginVerifier.Status.VERIFIED ? result.uuid() : null;
 
             if (mojangUuid != null && pending.playerUuid() != null) {
+                UUID storedPremiumUuid = plugin.getPlayerDataManager().getPremiumUuid(pending.username());
+                if (storedPremiumUuid != null && !storedPremiumUuid.equals(mojangUuid)) {
+                    LOGGER.warning("UUID premium diferente para o nickname protegido " + pending.username() + "; login bloqueado para evitar troca de identidade.");
+                    disconnect(user, "A identidade premium deste nickname mudou. Fale com a equipe para revisar a conta.");
+                    return;
+                }
                 authenticator.markVerified(pending.username(), pending.ip(), pending.playerUuid(), mojangUuid);
                 plugin.getPlayerDataManager().markPremiumIdentity(pending.username(), mojangUuid, pending.ip());
                 LOGGER.info("Identidade premium verificada e protegida para " + pending.username());
@@ -190,10 +196,15 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
                 resume(user, pending.version(), pending.username(), pending.playerUuid());
             } else if (mojangUuid != null) {
                 LOGGER.warning("A Mojang confirmou a conta premium de " + pending.username() + ", mas o cliente nao apresentou UUID de conexao valido.");
-                handleVerificationFailure(user, pending.version(), pending.username(), pending.playerUuid(), pending.ip(), "UUID da conexao indisponivel apos a verificacao premium.");
+                handleVerificationFailure(user, pending.version(), pending.username(), pending.playerUuid(), pending.ip(), FailureKind.UNAVAILABLE, "UUID da conexao indisponivel apos a verificacao premium.");
             } else {
-                LOGGER.info("Sessao da Mojang nao confirmada para " + pending.username() + ".");
-                handleVerificationFailure(user, pending.version(), pending.username(), pending.playerUuid(), pending.ip(), "A Mojang nao confirmou esta sessao.");
+                LOGGER.info("Verificacao premium de " + pending.username() + " terminou com status " + result.status() + ".");
+                FailureKind kind = switch (result.status()) {
+                    case NOT_PREMIUM -> FailureKind.NOT_PREMIUM;
+                    case PREMIUM_REQUIRES_AUTHENTICATION -> FailureKind.PREMIUM_REQUIRES_AUTHENTICATION;
+                    case UNAVAILABLE, VERIFIED -> FailureKind.UNAVAILABLE;
+                };
+                handleVerificationFailure(user, pending.version(), pending.username(), pending.playerUuid(), pending.ip(), kind, result.detail());
             }
         }));
     }
@@ -241,25 +252,51 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
         if (!connections.remove(key, pending)) return;
         verifier.remove(key);
         releasePending(pending.ip());
-        handleVerificationFailure(user, pending.version(), pending.username(), pending.playerUuid(), pending.ip(), reason);
+        handleVerificationFailure(user, pending.version(), pending.username(), pending.playerUuid(), pending.ip(), FailureKind.UNAVAILABLE, reason);
     }
 
-    private void handleVerificationFailure(User user, ClientVersion version, String username, UUID playerUuid, String ip, String reason) {
-        boolean protectedPremium = plugin.getPlayerDataManager().isPremiumIdentity(username);
-        if (protectedPremium) {
-            LOGGER.warning("Acesso cracked recusado para a conta premium protegida " + username + ": " + reason);
-            disconnect(user, PREMIUM_ACCOUNT_MESSAGE);
+    private void handleVerificationFailure(User user, ClientVersion version, String username, UUID playerUuid,
+                                          String ip, FailureKind kind, String reason) {
+        boolean knownPremium = plugin.getPlayerDataManager().isPremiumIdentity(username);
+        boolean protectedIdentity = plugin.isProtectedIdentity(username);
+        boolean registered = plugin.getPlayerDataManager().isRegistered(username);
+        boolean premiumFallback = plugin.getPlayerDataManager().hasPremiumFallbackPassword(username);
+
+        if (protectedIdentity) {
+            // Cargo alto continua reservado. Se o nome esta marcado como premium
+            // (ou a API confirmou que existe), so a sessao premium ou fallback
+            // escolhido pelo dono pode autenticar essa identidade.
+            if ((knownPremium || kind == FailureKind.PREMIUM_REQUIRES_AUTHENTICATION) && !premiumFallback) {
+                LOGGER.warning("Acesso recusado a identidade protegida premium " + username + ": " + reason);
+                disconnect(user, PREMIUM_ACCOUNT_MESSAGE);
+                return;
+            }
+            if (knownPremium && premiumFallback) {
+                LOGGER.warning("Verificacao Mojang falhou para " + username + "; permitindo login com fallback premium cadastrado.");
+                if (user != null) resume(user, version, username, playerUuid);
+                return;
+            }
+            if (registered && user != null) resume(user, version, username, playerUuid);
+            else disconnect(user, "Esta identidade esta protegida e requer autenticacao valida.");
             return;
         }
 
-        String action = plugin.getPremiumFailureAction();
-        if ("kick".equals(action)) {
+        // Nomes comuns podem ser usados tanto por jogadores premium quanto
+        // cracked. A API nao concede identidade: apenas hasJoined valido faz
+        // o autologin; nos demais casos segue o login/registro local.
+        if (kind == FailureKind.UNAVAILABLE || kind == FailureKind.PREMIUM_REQUIRES_AUTHENTICATION) {
+            if (user != null) resume(user, version, username, playerUuid);
+            return;
+        }
+        if ("kick".equals(plugin.getPremiumFailureAction())) {
             LOGGER.warning("Verificacao premium recusada para " + username + ": " + reason + " (acao=kick)");
             disconnect(user, "Nao foi possivel verificar sua conta premium. Tente novamente.");
             return;
         }
         if (user != null) resume(user, version, username, playerUuid);
     }
+
+    private enum FailureKind { NOT_PREMIUM, PREMIUM_REQUIRES_AUTHENTICATION, UNAVAILABLE }
 
     private void disconnect(User user, String message) {
         if (user == null) return;

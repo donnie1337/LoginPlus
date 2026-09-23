@@ -62,7 +62,10 @@ public final class PasswordUtils {
     }
 
     public static boolean verify(String password, String saltBase64, String expectedHash, int iterations) {
-        if (password == null || saltBase64 == null || expectedHash == null || iterations < 1) return false;
+        // A corrupted or manually edited YAML must not be able to force a
+        // practically unbounded PBKDF2 workload on the authentication executor.
+        if (password == null || saltBase64 == null || expectedHash == null
+                || iterations < 1 || iterations > MAX_ITERATIONS) return false;
         try {
             byte[] actual = Base64.getDecoder().decode(hash(password, saltBase64, iterations));
             byte[] expected = Base64.getDecoder().decode(expectedHash);

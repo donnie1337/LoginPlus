@@ -4,10 +4,10 @@ import java.util.Locale;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Controla tentativas erradas de login por IP e por conta.
+ * Controla tentativas erradas de login por IP e por combinacao de conta/IP.
  *
- * O limite por IP impede ataques simples e o limite por conta impede que um
- * atacante distribua as tentativas entre varios IPs para atacar a mesma conta.
+ * O limite por IP dificulta ataques simples. O limite conta/IP nao permite que
+ * tentativas feitas por um IP bloqueiem globalmente o dono de uma conta.
  */
 public class LoginProtection {
 
@@ -20,14 +20,16 @@ public class LoginProtection {
     }
 
     private final ConcurrentHashMap<String, Registro> porIp = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<String, Registro> porConta = new ConcurrentHashMap<>();
+    // O bloqueio por conta inclui o IP de origem. Um atacante nao pode
+    // bloquear globalmente a conta de um administrador com tentativas erradas.
+    private final ConcurrentHashMap<String, Registro> porContaEIp = new ConcurrentHashMap<>();
 
     public boolean estaBloqueado(String ip) {
         return estaBloqueadoNoMapa(porIp, ip);
     }
 
-    public boolean estaBloqueadoConta(String username) {
-        return estaBloqueadoNoMapa(porConta, normalizarConta(username));
+    public boolean estaBloqueadoConta(String username, String ip) {
+        return estaBloqueadoNoMapa(porContaEIp, chaveContaIp(username, ip));
     }
 
     private boolean estaBloqueadoNoMapa(ConcurrentHashMap<String, Registro> mapa, String chave) {
@@ -50,8 +52,8 @@ public class LoginProtection {
         return segundosRestantesNoMapa(porIp, ip);
     }
 
-    public long segundosRestantesConta(String username) {
-        return segundosRestantesNoMapa(porConta, normalizarConta(username));
+    public long segundosRestantesConta(String username, String ip) {
+        return segundosRestantesNoMapa(porContaEIp, chaveContaIp(username, ip));
     }
 
     private long segundosRestantesNoMapa(ConcurrentHashMap<String, Registro> mapa, String chave) {
@@ -65,8 +67,8 @@ public class LoginProtection {
         return registrarErroNoMapa(porIp, ip, maxTentativas, bloqueioMs);
     }
 
-    public int registrarErroConta(String username, int maxTentativas, long bloqueioMs) {
-        return registrarErroNoMapa(porConta, normalizarConta(username), maxTentativas, bloqueioMs);
+    public int registrarErroConta(String username, String ip, int maxTentativas, long bloqueioMs) {
+        return registrarErroNoMapa(porContaEIp, chaveContaIp(username, ip), maxTentativas, bloqueioMs);
     }
 
     private int registrarErroNoMapa(ConcurrentHashMap<String, Registro> mapa, String chave, int maxTentativas, long bloqueioMs) {
@@ -86,7 +88,7 @@ public class LoginProtection {
     public void cleanupExpired() {
         long agora = System.currentTimeMillis();
         limparMapa(porIp, agora);
-        limparMapa(porConta, agora);
+        limparMapa(porContaEIp, agora);
     }
 
     private void limparMapa(ConcurrentHashMap<String, Registro> mapa, long agora) {
@@ -101,11 +103,17 @@ public class LoginProtection {
         porIp.remove(ip);
     }
 
-    public void limparContaAoLogar(String username) {
-        porConta.remove(normalizarConta(username));
+    public void limparContaAoLogar(String username, String ip) {
+        porContaEIp.remove(chaveContaIp(username, ip));
     }
 
     private static String normalizarConta(String username) {
         return username == null ? null : username.toLowerCase(Locale.ROOT);
+    }
+
+    private static String chaveContaIp(String username, String ip) {
+        String conta = normalizarConta(username);
+        if (conta == null || ip == null || ip.isBlank()) return null;
+        return conta + "|" + ip;
     }
 }

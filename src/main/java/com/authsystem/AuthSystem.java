@@ -1,6 +1,7 @@
 package com.authsystem;
 
 import com.authsystem.commands.LoginCommand;
+import com.authsystem.commands.PremiumFallbackCommand;
 import com.authsystem.commands.RegisterCommand;
 import com.authsystem.listeners.AntiBypassListener;
 import com.authsystem.listeners.AuthListener;
@@ -69,6 +70,7 @@ public class AuthSystem extends JavaPlugin {
         getCommand("login").setExecutor(new LoginCommand(this));
         registerCommand = new RegisterCommand(this);
         getCommand("registro").setExecutor(registerCommand);
+        getCommand("premiumfallback").setExecutor(new PremiumFallbackCommand(this));
         getServer().getPluginManager().registerEvents(new AuthListener(this), this);
         getServer().getPluginManager().registerEvents(new AntiBypassListener(this), this);
         premiumVerificationListener = new PremiumVerificationListener(this, premiumLoginVerifier, premiumAuthenticator,
@@ -155,6 +157,7 @@ public class AuthSystem extends JavaPlugin {
         if (securityCleanupTask != null) securityCleanupTask.cancel();
         if (playerDataManager != null) playerDataManager.shutdown();
         if (premiumAccountManager != null) premiumAccountManager.shutdown();
+        if (premiumLoginVerifier != null) premiumLoginVerifier.shutdown();
         getLogger().info("LoginPlus desativado.");
     }
 

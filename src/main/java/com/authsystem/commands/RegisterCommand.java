@@ -45,10 +45,6 @@ public class RegisterCommand implements CommandExecutor {
         }
 
         String username = player.getName();
-        if (plugin.getPlayerDataManager().isPremiumIdentity(username)) {
-            player.sendMessage(msg("registro.identidade-premium", "&cEsta identidade pertence a uma conta original já verificada. Entre usando o Minecraft original com este nickname."));
-            return true;
-        }
         if (plugin.getPlayerDataManager().isRegistered(username)) {
             player.sendMessage(msg("registro.ja-registrado", "&cVocê já possui uma conta registrada. Use /login <senha>."));
             return true;
@@ -114,10 +110,6 @@ public class RegisterCommand implements CommandExecutor {
                     try {
                         if (!player.isOnline() || !player.getUniqueId().equals(playerId)) return;
                         if (plugin.getSessionManager().isAuthenticated(player)) return;
-                        if (plugin.getPlayerDataManager().isPremiumIdentity(username)) {
-                            player.sendMessage(msg("registro.identidade-premium", "&cEsta identidade pertence a uma conta original já verificada. Entre usando o Minecraft original com este nickname."));
-                            return;
-                        }
                         if (plugin.getPlayerDataManager().isRegistered(username)) {
                             player.sendMessage(msg("registro.ja-registrado", "&cVocê já possui uma conta registrada. Use /login <senha>."));
                             return;

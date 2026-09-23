@@ -39,9 +39,11 @@ seguranca:
   max-handshakes-premium-pendentes: 100
   max-handshakes-premium-por-ip: 3
 
-  # Ação aplicada quando a verificação premium falha.
-  # O valor "cracked" é um identificador técnico do LoginPlus.
-  # Nicknames já confirmados como premium continuam protegidos.
+  # Ação aplicada somente quando a Mojang confirmou que o nickname
+  # não pertence a uma conta Premium. "cracked" continua sendo o fluxo
+  # padrão para jogadores sem conta original.
+  # Timeout, DNS, rota, firewall, limite e erros HTTP não autenticam via
+  # Premium. Nomes comuns continuam no fluxo local /login ou /registro.
   acao-falha-verificacao-premium: cracked
 
 # ------------------------------------------------------------
