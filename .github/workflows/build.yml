@@ -51,16 +51,20 @@ jobs:
           grep -F 'max-contas-por-ip: 2' /tmp/loginplus-jar/config.yml >/dev/null
           grep -F 'max-ips-por-conta: 1' /tmp/loginplus-jar/config.yml >/dev/null
           grep -F 'max-verificacoes-mojang-por-minuto: 30' /tmp/loginplus-jar/config.yml >/dev/null
-          grep -F "version: '1.1.3'" /tmp/loginplus-jar/plugin.yml >/dev/null
+          VERSION=$(sed -n 's/^[[:space:]]*<version>\([^<]*\)<\/version>.*/\1/p' pom.xml | head -n 1)
+          test -n "$VERSION"
+          grep -F "version: '$VERSION'" /tmp/loginplus-jar/plugin.yml >/dev/null
           ! grep -F 'tamanho-minimo-senha:' /tmp/loginplus-jar/config.yml >/dev/null
           ! grep -F 'max-contas-por-ip' src/main/java/com/authsystem/manager/PlayerDataManager.java >/dev/null
           grep -F 'tryRegisterAuthenticatedIp' src/main/java/com/authsystem/commands/LoginCommand.java >/dev/null
           grep -F 'tryRegisterAuthenticatedIp' src/main/java/com/authsystem/listeners/AuthListener.java >/dev/null
           grep -F 'podeConsultar' src/main/java/com/authsystem/listeners/PremiumVerificationListener.java >/dev/null
+          grep -F 'seguranca:' /tmp/loginplus-jar/plugin.yml >/dev/null
+          ! grep -F 'premiumfallback:' /tmp/loginplus-jar/plugin.yml >/dev/null
       - name: Publicar JAR do plugin
         uses: actions/upload-artifact@v4
         with:
-          name: LoginPlus-1.1.3
+          name: LoginPlus
           path: target/*.jar
           if-no-files-found: error
           retention-days: 7
