@@ -17,7 +17,6 @@ import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerKickEvent;
-import org.bukkit.event.player.PlayerLoginEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.scheduler.BukkitTask;
@@ -57,16 +56,8 @@ public class AuthListener implements Listener {
         }
     }
 
-    /** Verifica nomes duplicados na thread principal; AsyncPlayerPreLoginEvent nao pode consultar Players com seguranca. */
-    @EventHandler(priority = EventPriority.LOWEST)
-    public void onLogin(PlayerLoginEvent event) {
-        for (Player online : plugin.getServer().getOnlinePlayers()) {
-            if (online.getName().equalsIgnoreCase(event.getPlayer().getName())) {
-                event.disallow(PlayerLoginEvent.Result.KICK_OTHER, DUPLICATE_SESSION_MESSAGE);
-                return;
-            }
-        }
-    }
+    // A proteção contra sessões duplicadas já é aplicada pelo próprio Paper durante o login.
+    // O listener não usa PlayerLoginEvent para não reintroduzir trabalho síncrono no fluxo de conexão.
 
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
