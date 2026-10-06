@@ -23,7 +23,7 @@ import java.util.logging.Level;
 /** Guarda os dados de cadastro das contas, incluindo UUID, data de registro, IPs e identidade premium confirmada. */
 public class PlayerDataManager {
     private static final DateTimeFormatter FORMATO_REGISTRO = DateTimeFormatter.ofPattern("ddMMyyHHmmss");
-    private static final DateTimeFormatter FORMATO_EXIBICAO_REGISTRO = DateTimeFormatter.ofPattern("dd/MM/yy/HH/mm/ss");
+    private static final DateTimeFormatter FORMATO_EXIBICAO_REGISTRO = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     private static final DateTimeFormatter FORMATO_LEITURA_REGISTRO = DateTimeFormatter.ofPattern("ddMMyyHHmmss");
     private static final DateTimeFormatter FORMATO_LEITURA_REGISTRO_LEGADO = DateTimeFormatter.ofPattern("ddMMyyyyHH");
 
@@ -169,7 +169,15 @@ public class PlayerDataManager {
         data.set(base + ".premium", true);
         data.set(base + ".premium-uuid", uuid.toString());
         if (ip != null && !ip.isBlank()) data.set(base + ".premium-ip", ip);
-        data.set(base + ".premium-verificado-em", FORMATO_REGISTRO.format(LocalDateTime.now()));
+
+        String agora = FORMATO_REGISTRO.format(LocalDateTime.now());
+        // Contas originais usam login automatico e nao passam pelo /registro.
+        // Registra a primeira verificacao premium como data de criacao da conta
+        // no servidor, preservando a data existente caso ja haja cadastro local.
+        if (!data.contains(base + ".registrado-em")) {
+            data.set(base + ".registrado-em", agora);
+        }
+        data.set(base + ".premium-verificado-em", agora);
         scheduleAsyncSave();
     }
 
