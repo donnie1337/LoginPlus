@@ -42,8 +42,6 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
     private static final long FALLBACK_MS = 15000L;
     private static final long CONNECTION_TTL_MS = 20000L;
     private static final String MOJANG_UNAVAILABLE_MESSAGE = "Nao foi possivel verificar sua conta com a Mojang. A conexao foi bloqueada por seguranca. Tente novamente mais tarde.";
-    private static final String PREMIUM_SESSION_REQUIRED_MESSAGE = "Existe uma conta Minecraft original com este nickname, mas a sessao nao foi confirmada. Entre pelo launcher oficial e tente novamente.";
-    private static final String PREMIUM_ACCOUNT_MESSAGE = "Esta conta ja foi confirmada como original anteriormente, mas nao pode ser verificada agora. A conexao foi bloqueada por seguranca.";
     private static final String DUPLICATE_SESSION_MESSAGE = "Esta conta ja esta conectada ao servidor.";
     private final PremiumLoginVerifier verifier;
     private final PremiumAuthenticator authenticator;
@@ -270,25 +268,33 @@ public final class PremiumVerificationListener extends PacketListenerAbstract {
             disconnect(user, MOJANG_UNAVAILABLE_MESSAGE);
             return;
         }
-        if (kind == FailureKind.PREMIUM_REQUIRES_AUTHENTICATION) {
-            LOGGER.warning("Conexao bloqueada: perfil Premium encontrado sem sessao valida para " + username + ".");
-            disconnect(user, PREMIUM_SESSION_REQUIRED_MESSAGE);
-            return;
-        }
-        if (knownPremium) {
-            LOGGER.warning("Conexao bloqueada: identidade Premium previamente confirmada nao foi confirmada nesta conexao para " + username + ".");
-            disconnect(user, PREMIUM_ACCOUNT_MESSAGE);
-            return;
-        }
-
+        // Uma conta premium sem prova de sessao nao recebe autologin premium,
+        // mas pode continuar como jogador cracked e usar o login/registro local.
+        // Isso permite nicknames que tambem existem na Mojang sem confundir
+        // "perfil premium existente" com "sessao premium autenticada".
         if (protectedIdentity) {
-            if (registered && user != null) resume(user, version, username, playerUuid);
-            else disconnect(user, "Esta identidade esta protegida e requer autenticacao valida.");
+            if (registered && user != null) {
+                LOGGER.info("Identidade protegida sem sessao premium valida seguindo para autenticacao local: " + username + ".");
+                resume(user, version, username, playerUuid);
+            } else {
+                disconnect(user, "Esta identidade esta protegida e requer autenticacao valida.");
+            }
             return;
         }
 
-        // Somente uma resposta positiva de que o perfil nao existe pode seguir
-        // pelo fluxo cracked. Perfil Premium sem prova foi bloqueado acima.
+        if (kind == FailureKind.PREMIUM_REQUIRES_AUTHENTICATION) {
+            LOGGER.info("Perfil premium encontrado sem sessao valida; " + username + " seguira pelo fluxo cracked local.");
+            if (user != null) resume(user, version, username, playerUuid);
+            return;
+        }
+
+        // Um nickname previamente confirmado como premium tambem pode entrar
+        // como cracked quando esta conexao nao apresentou prova premium valida.
+        // O historico premium nunca deve, sozinho, conceder autologin.
+        if (knownPremium) {
+            LOGGER.info("Nickname premium conhecido sem prova premium nesta conexao; usando autenticacao local para " + username + ".");
+        }
+
         if ("kick".equals(plugin.getPremiumFailureAction())) {
             LOGGER.warning("Verificacao premium recusada para " + username + ": " + reason + " (acao=kick)");
             disconnect(user, "Nao foi possivel verificar sua conta premium. Tente novamente.");
