@@ -151,6 +151,7 @@ public class LoginCommand implements CommandExecutor {
         plugin.getLoginProtection().limparAoLogar(ip);
         plugin.getLoginProtection().limparContaAoLogar(username, ip);
         player.sendMessage(msg("login.sucesso", "&a✔ &fLogin efetuado com sucesso! Bem-vindo(a) de volta."));
+        plugin.sendMarcosDailyRewardHint(player);
     }
 
     private void registrarFalha(Player player, String username, String ip) {
