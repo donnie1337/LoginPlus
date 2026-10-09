@@ -37,6 +37,26 @@ public class AuthListener implements Listener {
         return plugin.getMessagesManager().getChat(path, fallback, replacements);
     }
 
+    private String joinMsg(Player player, String path, String fallback) {
+        String message = msg(path, fallback);
+        String hint = plugin.getMarcosDailyRewardHint(player);
+        if (hint == null || hint.isBlank()) return message;
+
+        String marker = "primeiro lugar!";
+        int markerIndex = message.indexOf(marker);
+        if (markerIndex >= 0) {
+            int insertAt = markerIndex + marker.length();
+            return message.substring(0, insertAt) + "\n" + hint + message.substring(insertAt);
+        }
+
+        int dicasIndex = message.indexOf("Dicas");
+        if (dicasIndex >= 0) {
+            return message.substring(0, dicasIndex) + hint + "\n" + message.substring(dicasIndex);
+        }
+
+        return message + "\n" + hint;
+    }
+
     @EventHandler(priority = EventPriority.LOWEST)
     public void onPreLogin(AsyncPlayerPreLoginEvent event) {
         String ip = event.getAddress().getHostAddress();
@@ -86,11 +106,11 @@ public class AuthListener implements Listener {
         }
         if (registrado) {
             iniciarTitleAutenticacao(player, plugin.getMessagesManager().getTitleBemVindo(), plugin.getMessagesManager().getTitleLogin());
-            player.sendMessage(msg("join.retorno.login", "&aOlá! Pronto para continuar a sua jornada survival?\n\n &e* Equipe-se, siga em frente e escolha onde sua jornada vai começar;\n &e* Jogue limpo: o &c&lSentinela vigia &eestas terras contra trapaceiros...\n &e* Lembre-se: explore, construa e divirta-se em primeiro lugar!\n\n&aDicas de sobrevivência, spoilers e eventos: &discord.gg/redeglow"));
+            player.sendMessage(joinMsg(player, "join.retorno.login", "&aOlá! Pronto para continuar a sua jornada survival?\n\n &e* Equipe-se, siga em frente e escolha onde sua jornada vai começar;\n &e* Jogue limpo: o &c&lSentinela vigia &eestas terras contra trapaceiros...\n &e* Lembre-se: explore, construa e divirta-se em primeiro lugar!\n\n&aDicas de sobrevivência, spoilers e eventos: &discord.gg/redeglow"));
             player.sendMessage(msg("join.registrado", "&eEsta conta possui registro. Use /login <senha> para entrar."));
         } else {
             iniciarTitleAutenticacao(player, plugin.getMessagesManager().getTitleBemVindo(), plugin.getMessagesManager().getTitleRegistro());
-            player.sendMessage(msg("join.primeiro-acesso.registro", "&aOlá! Pronto para começar a sua jornada survival?\n\n &e* Equipe-se, siga em frente e escolha onde sua jornada vai começar;\n &e* Jogue limpo: o &c&lSentinela vigia &eestas terras contra trapaceiros...\n &e* Lembre-se: explore, construa e divirta-se em primeiro lugar!\n\n&aDicas de sobrevivência, spoilers e eventos: &discord.gg/redeglow"));
+            player.sendMessage(joinMsg(player, "join.primeiro-acesso.registro", "&aOlá! Pronto para começar a sua jornada survival?\n\n &e* Equipe-se, siga em frente e escolha onde sua jornada vai começar;\n &e* Jogue limpo: o &c&lSentinela vigia &eestas terras contra trapaceiros...\n &e* Lembre-se: explore, construa e divirta-se em primeiro lugar!\n\n&aDicas de sobrevivência, spoilers e eventos: &discord.gg/redeglow"));
             player.sendMessage(msg("join.nao-registrado", "&eBem-vindo! Use /registro <senha> <confirmar-senha> para criar sua conta."));
         }
 
@@ -124,13 +144,12 @@ public class AuthListener implements Listener {
         enviarTitleAutenticacao(player, plugin.getMessagesManager().getTitleBemVindo(), plugin.getMessagesManager().getTitlePremium());
 
         if (primeiroAcesso) {
-            player.sendMessage(msg("join.primeiro-acesso.premium", "&aOlá! Pronto para começar a sua jornada survival?"));
+            player.sendMessage(joinMsg(player, "join.primeiro-acesso.premium", "&aOlá! Pronto para começar a sua jornada survival?"));
             player.sendMessage(msg("premium.sucesso-primeiro-acesso", "&aSua conta original já foi verificada automaticamente. Não é preciso se registrar."));
         } else {
-            player.sendMessage(msg("join.retorno.premium", "&aOlá! Pronto para continuar a sua jornada survival?"));
+            player.sendMessage(joinMsg(player, "join.retorno.premium", "&aOlá! Pronto para continuar a sua jornada survival?"));
             player.sendMessage(msg("premium.sucesso-retorno", "&aSua conta original já foi verificada automaticamente."));
         }
-        plugin.sendMarcosDailyRewardHint(player);
         return true;
     }
 
