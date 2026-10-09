@@ -210,7 +210,7 @@ public class AuthSystem extends JavaPlugin {
             if (Boolean.TRUE.equals(available)) {
                 return getMessagesManager().getChat(
                         "join.marcos-diaria-disponivel",
-                        "&b* Você possui uma recompensa diária disponível em /marcos."
+                        "&b  * Você possui uma recompensa diária disponível em /marcos."
                 );
             }
         } catch (ReflectiveOperationException | LinkageError ignored) {
