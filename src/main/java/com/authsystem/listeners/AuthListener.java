@@ -128,8 +128,9 @@ public class AuthListener implements Listener {
             player.sendMessage(msg("premium.sucesso-primeiro-acesso", "&aSua conta original já foi verificada automaticamente. Não é preciso se registrar."));
         } else {
             player.sendMessage(msg("join.retorno.premium", "&aOlá! Pronto para continuar a sua jornada survival?"));
-            player.sendMessage(msg("premium.sucesso-retorno", "&aSua conta original já foi verificada automaticamente. Não é preciso usar /login."));
+            player.sendMessage(msg("premium.sucesso-retorno", "&aSua conta original já foi verificada automaticamente."));
         }
+        plugin.sendMarcosDailyRewardHint(player);
         return true;
     }
 
