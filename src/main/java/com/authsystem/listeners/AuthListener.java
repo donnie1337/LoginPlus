@@ -40,21 +40,8 @@ public class AuthListener implements Listener {
     private String joinMsg(Player player, String path, String fallback) {
         String message = msg(path, fallback);
         String hint = plugin.getMarcosDailyRewardHint(player);
-        if (hint == null || hint.isBlank()) return message;
-
-        String marker = "primeiro lugar!";
-        int markerIndex = message.indexOf(marker);
-        if (markerIndex >= 0) {
-            int insertAt = markerIndex + marker.length();
-            return message.substring(0, insertAt) + "\n" + hint + message.substring(insertAt);
-        }
-
-        int dicasIndex = message.indexOf("Dicas");
-        if (dicasIndex >= 0) {
-            return message.substring(0, dicasIndex) + hint + "\n" + message.substring(dicasIndex);
-        }
-
-        return message + "\n" + hint;
+        if (hint == null) hint = "";
+        return message.replace("{marcos_daily_hint}", hint);
     }
 
     @EventHandler(priority = EventPriority.LOWEST)
