@@ -135,6 +135,7 @@ public class RegisterCommand implements CommandExecutor {
                         plugin.getSessionManager().setAuthenticated(player, true);
                         plugin.getSessionManager().cancelTimeout(player);
                         player.sendMessage(msg("registro.sucesso", "&aRegistro concluído com sucesso! Você já está logado."));
+                        plugin.sendMarcosDailyRewardHint(player);
                     } finally {
                         registrosEmAndamento.remove(playerId);
                     }
