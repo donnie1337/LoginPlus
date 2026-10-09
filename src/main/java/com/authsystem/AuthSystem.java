@@ -193,28 +193,29 @@ public class AuthSystem extends JavaPlugin {
     public MessagesManager getMessagesManager() { return messagesManager; }
     public HashProcessingLimiter getHashProcessingLimiter() { return hashProcessingLimiter; }
 
-    public void sendMarcosDailyRewardHint(Player player) {
-        if (player == null || !player.isOnline()) return;
+    public String getMarcosDailyRewardHint(Player player) {
+        if (player == null || !player.isOnline()) return "";
 
         var terrenosPlus = getServer().getPluginManager().getPlugin("TerrenosPlus");
-        if (terrenosPlus == null || !terrenosPlus.isEnabled()) return;
+        if (terrenosPlus == null || !terrenosPlus.isEnabled()) return "";
 
         try {
             Object marcoManager = terrenosPlus.getClass().getMethod("getMarcoManager").invoke(terrenosPlus);
-            if (marcoManager == null) return;
+            if (marcoManager == null) return "";
 
             Object available = marcoManager.getClass()
                     .getMethod("canClaimDaily", UUID.class)
                     .invoke(marcoManager, player.getUniqueId());
 
             if (Boolean.TRUE.equals(available)) {
-                player.sendMessage(getMessagesManager().getChat(
+                return getMessagesManager().getChat(
                         "join.marcos-diaria-disponivel",
                         "&b* Você possui uma recompensa diária disponível em /marcos."
-                ));
+                );
             }
         } catch (ReflectiveOperationException | LinkageError ignored) {
             // Integração opcional: o LoginPlus continua funcionando sem TerrenosPlus.
         }
+        return "";
     }
 }
