@@ -41,7 +41,23 @@ public class AuthListener implements Listener {
         String message = msg(path, fallback);
         String hint = plugin.getMarcosDailyRewardHint(player);
         if (hint == null) hint = "";
-        return message.replace("{marcos_daily_hint}", hint);
+
+        if (message.contains("{marcos_daily_hint}")) {
+            return message.replace("{marcos_daily_hint}", hint);
+        }
+
+        // Compatibilidade com mensagens/chat.yml já existente no servidor:
+        // insere o aviso exatamente abaixo de "Lembre-se" sem exigir apagar o arquivo.
+        if (!hint.isBlank()) {
+            String marker = "primeiro lugar!";
+            int markerIndex = message.indexOf(marker);
+            if (markerIndex >= 0) {
+                int insertAt = markerIndex + marker.length();
+                return message.substring(0, insertAt) + "\n" + hint + message.substring(insertAt);
+            }
+        }
+
+        return message;
     }
 
     @EventHandler(priority = EventPriority.LOWEST)
