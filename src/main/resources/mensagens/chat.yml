@@ -13,7 +13,7 @@ join:
   registrado: "\n  \n&bUse: /login <senha>\n  \n\n  \n"
   nao-registrado: "\n  \n&bUse: /registro <senha> <senha>\n  \n\n  \n"
   timeout: "&cVocê demorou muito para fazer login/registro."
-  marcos-diaria-disponivel: "&b* Você possui uma recompensa diária disponível em /marcos."
+  marcos-diaria-disponivel: "&b  * Você possui uma recompensa diária disponível em /marcos."
 
 login:
   apenas-jogador: "&cEste comando só pode ser usado por jogadores."
